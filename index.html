@@ -177,12 +177,12 @@ Erä 253 | NekaLab Lager | Tilattu | 2200 kpl | Kalle 94% / Teemu 100% / Pia 100
 Erä 254 | Startax | Suunnittelussa | 2100 kpl | Kalle 94% / Teemu 100% / Pia 83%
 Erä 255 | Tampella 10 | Suunnittelussa | 2200 kpl | Kalle 94% / Teemu 78% / Pia -
 Erä 256 | Pridezilla | Suunnittelussa | 2000 kpl | Kalle 94% / Teemu 89% / Pia -
-Erä 257 | Brewcats | Ei aloitettu | 1700 kpl | Kalle 72% / Teemu 89% / Pia -
-Erä 258 | Social Burger Beer | Ei aloitettu | 2100 kpl | Kalle 61% / Teemu 89% / Pia -
-Erä 259 | Pridezilla uusi | Ei aloitettu | - | Kalle 56% / Teemu - / Pia -
-Erä 260 | Madame | Ei aloitettu | - | Kalle 50% / Teemu 22% / Pia -
-Erä 261 | Joku hapanolut | Ei aloitettu | - | Kalle 50% / Teemu - / Pia -
-Erä 262 | Sytytys: Micro | Ei aloitettu | - | Kalle 28% / Teemu 56% / Pia -
+Erä 257 | Brewcats | Suunnittelussa | 1700 kpl | Kalle 72% / Teemu 89% / Pia -
+Erä 258 | Social Burger Beer | Suunnittelussa | 2100 kpl | Kalle 61% / Teemu 89% / Pia -
+Erä 259 | Pridezilla uusi | Ei tietoa | - | Kalle 56% / Teemu - / Pia -
+Erä 260 | Madame | Ei tietoa | - | Kalle 50% / Teemu 22% / Pia -
+Erä 261 | Joku hapanolut | Ei tietoa | - | Kalle 50% / Teemu - / Pia -
+Erä 262 | Sytytys: Micro | Ei tietoa | - | Kalle 28% / Teemu 56% / Pia -
 
 === PANIMON RYTMI JA AIKATAULUTULOGIIKKA ===
 Tölkitys (astiointi) tapahtuu yleensä tiistaisin.
@@ -317,7 +317,6 @@ async function sendMessage() {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
-        system: SYSTEM_PROMPT,
         messages: messages
       })
     });
