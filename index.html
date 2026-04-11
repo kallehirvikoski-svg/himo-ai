@@ -17,7 +17,7 @@
   body {
     background: var(--bg); color: var(--text);
     font-family: 'DM Mono', monospace;
-    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
   }
 
   header {
@@ -54,8 +54,8 @@
   .suggestion { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.72rem; padding: 6px 12px; border-radius: 2px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
   .suggestion:hover { border-color: var(--accent); color: var(--accent); }
 
-  .input-area { padding: 16px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 12px; align-items: flex-end; flex-shrink: 0; }
-  textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.82rem; padding: 10px 14px; border-radius: 2px; resize: none; min-height: 42px; max-height: 120px; line-height: 1.5; outline: none; transition: border-color 0.15s; }
+  .input-area { padding: 16px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 12px; align-items: flex-end; flex-shrink: 0; position: sticky; bottom: 0; }
+  textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 16px; padding: 10px 14px; border-radius: 2px; resize: none; min-height: 42px; max-height: 120px; line-height: 1.5; outline: none; transition: border-color 0.15s; -webkit-appearance: none; }
   textarea:focus { border-color: var(--accent); }
   textarea::placeholder { color: var(--muted); }
   button.send { background: var(--accent); color: #0e0e0f; border: none; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.8rem; padding: 10px 18px; border-radius: 2px; cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; transition: opacity 0.15s; white-space: nowrap; height: 42px; }
