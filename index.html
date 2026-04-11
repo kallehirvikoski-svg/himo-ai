@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Himo AI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0e0e0f; --surface: #17181a; --border: #2a2b2e;
+    --accent: #e8c84a; --text: #e8e6e0; --muted: #6b6860; --green: #5b8f6e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'DM Mono', monospace;
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    background: var(--surface); flex-shrink: 0;
+  }
+
+  .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.3rem; letter-spacing: -0.02em; color: var(--accent); }
+  .logo span { color: var(--text); font-weight: 400; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-left: auto; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-label { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .chat-area { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+  .message { display: flex; flex-direction: column; gap: 6px; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .message.user { align-items: flex-end; }
+  .message.assistant { align-items: flex-start; }
+  .msg-label { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+
+  .bubble { max-width: 85%; padding: 12px 16px; line-height: 1.6; font-size: 0.82rem; }
+  .message.user .bubble { background: var(--accent); color: #0e0e0f; border-radius: 2px 2px 0 2px; }
+  .message.assistant .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 2px 2px 2px 0; white-space: pre-wrap; }
+
+  .thinking { display: flex; align-items: center; gap: 6px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 2px; font-size: 0.75rem; color: var(--muted); max-width: 200px; }
+  .thinking-dots { display: flex; gap: 4px; }
+  .thinking-dots span { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: blink 1.2s infinite; }
+  .thinking-dots span:nth-child(2){animation-delay:.2s} .thinking-dots span:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:0.2}40%{opacity:1}}
+
+  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 16px; flex-shrink: 0; }
+  .suggestion { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.72rem; padding: 6px 12px; border-radius: 2px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .suggestion:hover { border-color: var(--accent); color: var(--accent); }
+
+  .input-area { padding: 16px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 12px; align-items: flex-end; flex-shrink: 0; }
+  textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.82rem; padding: 10px 14px; border-radius: 2px; resize: none; min-height: 42px; max-height: 120px; line-height: 1.5; outline: none; transition: border-color 0.15s; }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+  button.send { background: var(--accent); color: #0e0e0f; border: none; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.8rem; padding: 10px 18px; border-radius: 2px; cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; transition: opacity 0.15s; white-space: nowrap; height: 42px; }
+  button.send:hover { opacity: 0.85; }
+  button.send:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">HIMO <span>/ AI</span></div>
+  <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+  <div class="status-label">Tuotantoassistentti</div>
+  <div class="status-dot"></div>
+</header>
+
+<div class="chat-area" id="chat">
+  <div class="message assistant">
+    <div class="msg-label">Himo AI</div>
+    <div class="bubble">Moi! Olen Panimo Himon tuotantoassistentti.
+
+Tunnen nykyiset erät, tankit ja aikataulut. Voit kysyä esimerkiksi:
+– Mitä tankissa 4 on nyt?
+– Milloin seuraava keitto?
+– Mitkä erät astioituu huhtikuussa?
+– Mikä on erän 257 status?</div>
+  </div>
+</div>
+
+<div class="suggestions" id="suggestions">
+  <button class="suggestion" onclick="sendSuggestion(this)">Mitä tankissa 4 on?</button>
+  <button class="suggestion" onclick="sendSuggestion(this)">Tulevat keitot</button>
+  <button class="suggestion" onclick="sendSuggestion(this)">Avoimet erät</button>
+  <button class="suggestion" onclick="sendSuggestion(this)">Huhtikuun astioinnit</button>
+  <button class="suggestion" onclick="sendSuggestion(this)">Parasta ennen -varoitukset</button>
+</div>
+
+<div class="input-area">
+  <textarea id="input" placeholder="Kysy tuotannosta..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+  <button class="send" id="sendBtn" onclick="sendMessage()">Lähetä</button>
+</div>
+
+<script>
+const SYSTEM_PROMPT = `Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, täsmällinen ja ammattimainen.
+
+Tässä on Panimo Himon tuotantodata (päivitetty 10.4.2026):
+
+=== AKTIIVISET ERÄT ===
+
+Erä 253 | NekaLab Lager | Tankki 1
+- Keitto: 9.4.2026 | Astiointi: 5.5.2026 | Parasta ennen: 5/27
+- Tölkit: 2000 kpl | Status: 94% | Etiketti: tilattu
+
+Erä 254 | Startax | Lager | Tankki 4 → siirto tankkiin 8 (13.4.)
+- Keitto: 19.3.2026 | Astiointi: 21.4.2026 | Parasta ennen: 4/27
+- Tölkit: 1818 kpl | EAN: 6430077449749 | Status: 94%
+
+Erä 255 | Tampella 10 | Helles lager | Tankki 7 → siirto tankkiin 9 (13.4.)
+- Keitto: 25.3.2026 | Astiointi: 28.4.2026 | Parasta ennen: 4/27
+- Tölkit: 1931 kpl | EAN: 6430077449756 | Status: 94% | Etiketti: valmis
+- Kollabo: Ravintola Tampella
+
+Erä 256 | Pridezilla | Mexican lager | Tankki 5
+- Keitto: 27.3.2026 | Astiointi: 28.4.2026 | Parasta ennen: 4/27
+- Tölkit: 1704 kpl + 2 keg 20L + 2 keg 30L | EAN: 6430077449763 | Status: 94%
+- Kollabo: Manse Pride | Adjunkti: Amarillo, maissi
+
+Erä 257 | Brewcats | Saison | Tankki 3
+- Keitto: 1.4.2026 | Astiointi: 12.5.2026 | Parasta ennen: 5/27
+- Tölkit: 1500 kpl + 12 keg 20L | EAN: 6430077449794 | Status: 72%
+- Kollabo: Brewcats | Adjunkti: Mango, Passion
+
+Erä 258 | Social Burger Beer | APA | Tankki 2
+- Keitto: 2.4.2026 | Astiointi: 5.5.2026 | Parasta ennen: 5/27
+- Tölkit: 1863 kpl | EAN: 6430077449817 | Status: 61%
+- Kollabo: Social Burger Joint | Adjunkti: Azacca, Amarillo, Cascade
+
+Erä 259 | Pridezilla (uusi erä) | Mexican lager | Tankki 6
+- Keitto: 10.4.2026 | Astiointi: 12.5.2026 | Parasta ennen: 5/27
+- Tölkit: 1931 kpl | Status: 61% | Adjunkti: Amarillo, maissi
+
+Erä 260 | Madame | Session IPA | Tankki 4 (siirron jälkeen)
+- Keitto: 15.4.2026 | Astiointi: 19.5.2026 | Parasta ennen: 2/27
+- Tölkit: 1818 kpl | Status: 56%
+
+Erä 261 | Joku hapanolut | Gose | Tankki 7 (siirron jälkeen)
+- Keitto: 16.4.2026 | Astiointi: 19.5.2026 | Parasta ennen: 5/27
+- Tölkit: 2045 kpl | Status: 56% | Adjunkti: Lime, Greippi
+
+Erä 262 | Sytytys: Micro | Micro NEIPA
+- Keitto: 22.4.2026 | Astiointi: 26.4.2026 | Parasta ennen: 1/27
+- Tölkit: 1318 kpl + 2 keg 20L + 6 keg 30L | Status: 50%
+- Adjunkti: Idaho 7, Citra, Mosaic
+
+=== TANKKITILANNE (10.4.2026) ===
+Tankki 1: Erä 253 (NekaLab Lager)
+Tankki 2: Erä 258 (Social Burger Beer)
+Tankki 3: Erä 257 (Brewcats)
+Tankki 4: Erä 254 (Startax) → siirtyy 13.4., sen jälkeen erä 260 (Madame)
+Tankki 5: Erä 256 (Pridezilla)
+Tankki 6: Erä 259 (Pridezilla uusi)
+Tankki 7: Erä 255 (Tampella 10) → siirtyy 13.4., sen jälkeen erä 261 (Joku hapanolut)
+Tankki 8: Vapaa → vastaanottaa erän 254 siirron 13.4.
+Tankki 9: Vapaa → vastaanottaa erän 255 siirron 13.4.
+Tankki 10: Tyhjä
+
+=== TULEVAT TAPAHTUMAT ===
+Keitot: 15.4 Madame | 16.4 Joku hapanolut | 22.4 Sytytys: Micro
+Siirrot: 13.4 Startax (4→8) | 13.4 Tampella 10 (7→9)
+Astioinnit: 21.4 Startax | 26.4 Sytytys: Micro | 28.4 Tampella 10 + Pridezilla | 5.5 NekaLab + Social Burger | 12.5 Brewcats + Pridezilla uusi | 19.5 Madame + Joku hapanolut
+
+=== PARASTA ENNEN -VAROITUKSET ===
+Erä 248 Kateus: 12/26 | Erä 249 Katellaan: 12/26 | Erä 262 Sytytys: Micro: 1/27 (lyhyt!)
+
+=== KUSTANNUKSIA ===
+Startax tölkki omakust: ~0,98 € | Kateus tölkki omakust: ~1,72 € | Raaka-aine/L: 0,35–1,53 €
+
+Vastaa täsmällisesti. Jos dataa ei ole, sano rehellisesti. Älä keksi tietoja.`;
+
+let messages = [];
+let isLoading = false;
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function sendSuggestion(btn) {
+  document.getElementById('input').value = btn.textContent;
+  sendMessage();
+}
+
+function addMessage(role, content) {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+  div.innerHTML = `<div class="msg-label">${role === 'user' ? 'Sinä' : 'Himo AI'}</div><div class="bubble">${content}</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function showThinking() {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'message assistant'; div.id = 'thinking';
+  div.innerHTML = `<div class="msg-label">Himo AI</div><div class="thinking"><div class="thinking-dots"><span></span><span></span><span></span></div> Ajattelee...</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('input');
+  const text = input.value.trim();
+  if (!text || isLoading) return;
+
+  document.getElementById('suggestions').style.display = 'none';
+  isLoading = true;
+  document.getElementById('sendBtn').disabled = true;
+  input.value = ''; input.style.height = 'auto';
+
+  addMessage('user', escapeHtml(text));
+  messages.push({ role: 'user', content: text });
+  showThinking();
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: messages
+      })
+    });
+    const data = await response.json();
+    const reply = data.content?.map(b => b.text || '').join('') || 'Virhe: ei vastausta.';
+    document.getElementById('thinking')?.remove();
+    addMessage('assistant', escapeHtml(reply));
+    messages.push({ role: 'assistant', content: reply });
+  } catch (err) {
+    document.getElementById('thinking')?.remove();
+    addMessage('assistant', 'Virhe yhteydessä: ' + err.message);
+  }
+
+  isLoading = false;
+  document.getElementById('sendBtn').disabled = false;
+  input.focus();
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+</script>
+</body>
+</html>
