@@ -230,8 +230,8 @@ def build_system_prompt(data, include_ideas=False):
     # Laske tankkitilanne Pythonilla
     today_d = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Kerää tankkivaraukset
-    varaukset = []
+    # Kerää KAIKKI varaukset per tankki ja etsi viimeisin tuleva astiointi
+    tankki_kaikki = {}
     for r in kalle[1:]:
         if not r or not r[0]: continue
         try: era_n = int(float(str(r[0])))
@@ -251,23 +251,19 @@ def build_system_prompt(data, include_ideas=False):
         if not ast_d: continue
 
         if prim:
-            vapautuu = siirto_d if siirto_d else ast_d
-            varaukset.append((prim, era_n, nimi_t, ast_d, vapautuu, keitto_d))
+            tankki_kaikki.setdefault(prim, []).append((ast_d, era_n, nimi_t, keitto_d))
         if sek and siirto_d:
-            varaukset.append((sek, era_n, nimi_t, ast_d, ast_d, keitto_d))
+            tankki_kaikki.setdefault(sek, []).append((ast_d, era_n, nimi_t, keitto_d))
 
-    tankki_aikajana = {}
-    for tankki, era_n, nimi_t, ast_d, vapautuu, keitto_d in varaukset:
-        tankki_aikajana.setdefault(tankki, []).append((vapautuu, ast_d, era_n, nimi_t, keitto_d))
-    for t in tankki_aikajana:
-        tankki_aikajana[t].sort()
-
+    # Tankki vapautuu viimeisimmän tulevan astiointipäivän jälkeen
+    tankki_vapautuu = {}
     tankki_nykyinen = {}
-    for tankki, lista in tankki_aikajana.items():
-        for vapautuu, ast_d, era_n, nimi_t, keitto_d in lista:
-            if vapautuu > today_d:
-                tankki_nykyinen[tankki] = (ast_d, era_n, nimi_t, keitto_d)
-                break
+    for tankki, lista in tankki_kaikki.items():
+        tulevat = [(a, e, n, k) for a, e, n, k in lista if a > today_d]
+        if tulevat:
+            viimeisin = max(tulevat, key=lambda x: x[0])
+            tankki_vapautuu[tankki] = viimeisin[0]
+            tankki_nykyinen[tankki] = viimeisin
 
     tankki_lines = []
     for t in range(1, 11):
