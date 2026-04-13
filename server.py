@@ -10,9 +10,16 @@ PORT = int(os.environ.get('PORT', 8000))
 WEBHOOK = 'https://script.google.com/macros/s/AKfycbzBifHtQj2ioS3S0714ANeiOQMiynwAN_0aAtKBV4m4E_L5JrRyFgDb_rcl9fgTyn0/exec'
 
 def fetch_sheet_data():
-    req = urllib.request.Request(WEBHOOK, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.loads(resp.read())
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(WEBHOOK, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read())
+        except Exception as e:
+            if attempt == 2:
+                raise
+            print(f'Sheets-haku yritys {attempt+1} epäonnistui: {e}, yritetään uudelleen...')
+    return None
 
 def parse_date(val):
     if not val: return None
