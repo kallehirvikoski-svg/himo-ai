@@ -81,7 +81,7 @@ def build_planning_tables():
 
     return '\n'.join(keitto_to_ast), '\n'.join(ast_to_keitto)
 
-def build_system_prompt(data):
+def build_system_prompt(data, include_ideas=False):
     kalle = data.get('kalle', [])
     teemu = data.get('teemu', [])
     etusivu = data.get('etusivu', [])
@@ -211,12 +211,13 @@ def build_system_prompt(data):
             lines.append(f"  EAN keg 30L: {ean_keg30}")
         lines.append(f"  Etiketti: {etiketti_tilanne} | Tilausmäärä: {etiketti_maara} kpl")
         lines.append(f"  Tiimin valmius: {kalle_pct}")
-        if sitaatti and str(sitaatti).strip() not in ('-', ''):
-            lines.append(f"  Sitaatti: {sitaatti}")
-        if olut_idea and str(olut_idea).strip() not in ('-', ''):
-            lines.append(f"  Olut idea: {olut_idea}")
-        if etiketti_idea and str(etiketti_idea).strip() not in ('-', ''):
-            lines.append(f"  Etiketti-idea: {str(etiketti_idea)[:300]}")
+        if include_ideas:
+            if sitaatti and str(sitaatti).strip() not in ('-', ''):
+                lines.append(f"  Sitaatti: {sitaatti}")
+            if olut_idea and str(olut_idea).strip() not in ('-', ''):
+                lines.append(f"  Olut idea: {olut_idea}")
+            if etiketti_idea and str(etiketti_idea).strip() not in ('-', ''):
+                lines.append(f"  Etiketti-idea: {str(etiketti_idea)[:300]}")
         lines.append(f"  Status: {status}")
         erat_lines.append('\n'.join(lines))
 
@@ -314,10 +315,14 @@ Erä 248 Kateus: 12/26 | Erä 249 Katellaan: 12/26 | Erä 262 Sytytys: Micro: 1/
 
 Vastaa täsmällisesti. Jos dataa ei ole, sano rehellisesti. Älä keksi tietoja."""
 
-def get_system_prompt():
+IDEA_KEYWORDS = ['idea', 'etiketti', 'sitaatti', 'konsepti', 'kuvitus', 'hahmo', 'draghahmo',
+                  'olut idea', 'etikettiidea', 'suunnittelu', 'grafiikka', 'kollabo']
+
+def get_system_prompt(user_message=''):
+    include_ideas = any(kw in user_message.lower() for kw in IDEA_KEYWORDS)
     try:
         data = fetch_sheet_data()
-        return build_system_prompt(data)
+        return build_system_prompt(data, include_ideas=include_ideas)
     except Exception as e:
         print(f'Sheets-haku epäonnistui: {e}')
         return 'Olet Panimo Himon tuotantoassistentti. Sheets-data ei ole saatavilla juuri nyt.'
@@ -356,8 +361,13 @@ class Handler(BaseHTTPRequestHandler):
             body = self.rfile.read(length)
             try:
                 payload = json.loads(body)
+                user_msg = ''
+                if payload.get('messages'):
+                    last = payload['messages'][-1]
+                    if isinstance(last.get('content'), str):
+                        user_msg = last['content']
                 payload['max_tokens'] = 2000
-                payload['system'] = get_system_prompt()
+                payload['system'] = get_system_prompt(user_msg)
                 req = urllib.request.Request(
                     'https://api.anthropic.com/v1/messages',
                     data=json.dumps(payload).encode('utf-8'),
