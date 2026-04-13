@@ -77,11 +77,11 @@ def build_schedule(kalle_rows):
     for t in tankki_aikajana:
         tankki_aikajana[t].sort()
 
-    # Nykyinen erä per tankki = ensimmäinen jonka vapautuminen >= tänään
+    # Nykyinen erä per tankki = ensimmäinen jonka vapautuminen > tänään (ei sama päivä)
     tankki_nykyinen = {}
     for tankki, lista in tankki_aikajana.items():
         for vapautuu, ast_d, era, nimi in lista:
-            if vapautuu >= today:
+            if vapautuu > today:  # Muutettu >= → > jotta tänään siirtyvät vapautuvat heti
                 tankki_nykyinen[tankki] = (ast_d, era, nimi)
                 break
 
