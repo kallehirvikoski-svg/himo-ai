@@ -248,30 +248,31 @@ def build_system_prompt(data):
 Tänään on {today_str} (viikko {today_vko}).
 Data haettu suoraan Himo_Tuotanto Google Sheetistä.
 
+PÄIVÄMÄÄRÄSÄÄNTÖ — LUE TÄMÄ ENSIN:
+Kaikki päivämäärät alla on laskettu Pythonilla suoraan Sheets-datasta. Ne ovat ehdottoman oikeita.
+ÄLÄ KOSKAAN muuta, pyöristä, korjaa tai tulkitse päivämääriä. Toista ne TÄSMÄLLEEN sellaisina kuin ne näkyvät alla.
+Jos jokin tuntuu epäloogiselta, se johtuu datasta — älä korjaa sitä itse.
+
 === ERÄT ===
 
 {chr(10).join(erat_lines)}
 
-=== TANKKITILANNE (laskettu Pythonilla) ===
+=== TANKKITILANNE ===
+Nämä ovat ainoat oikeat astiointipäivät. Käytä VAIN näitä — älä laske tai muuta.
 {chr(10).join(tankki_lines)}
 
-=== SEURAAVAT KEITTOPÄIVÄT JA VAPAAT TANKIT (laskettu Pythonilla) ===
+=== SEURAAVAT KEITTOPÄIVÄT JA VAPAAT TANKIT ===
+Nämä ovat ainoat oikeat keittopäivät. Käytä VAIN näitä — älä laske tai muuta.
 {chr(10).join(brew_slot_lines)}
 
-=== KEITTO → ARVIOITU ASTIOINTI (laskettu Pythonilla, keitto + 35 pv → lähin ti) ===
-HUOM: Nämä ovat arvioita suunnittelua varten. Todellinen astiointipäivä syötetään aina Sheetsiin erikseen.
+=== ARVIOITU ASTIOINTI UUSILLE ERILLE (vain suunnittelua varten) ===
+Käytä VAIN jos erällä ei ole astiointipäivää Sheetsissä. Kerro aina että kyseessä on arvio.
 {chr(10).join(arvio_lines)}
 
 === PANIMON RYTMI JA KAPASITEETTI ===
 - Keittopäivät: ke ja to, 1 erä/päivä (sourit joskus 2 päivää)
 - Astiointipäivät: tiistai, normaali 2 erää/päivä, max 3 erää/päivä
 - Jos tarvitaan lisää: keittoon pe, astiointiin ke — mainitse että vaatii rytmin muutosta
-
-SÄÄNTÖ: Käytä AINA yllä olevia Pythonilla laskettuja tietoja. Älä laske päivämääriä itse.
-- Tankkien vapautuminen: katso TANKKITILANNE
-- Keittopäivät ja vapaat tankit: katso SEURAAVAT KEITTOPÄIVÄT
-- Arvioitu astiointi uudelle erälle: katso KEITTO → ARVIOITU ASTIOINTI -taulukko
-- Jos kysytään keittopäivää tiettyä astiointia varten: laske noin 35 pv taaksepäin ja etsi lähin ke tai to SEURAAVAT KEITTOPÄIVÄT -listalta
 
 === PARASTA ENNEN -VAROITUKSET ===
 Erä 248 Kateus: 12/26 | Erä 249 Katellaan: 12/26 | Erä 262 Sytytys: Micro: 1/27 (lyhyt!)
