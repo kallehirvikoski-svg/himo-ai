@@ -18,6 +18,16 @@ def parse_date(val):
     if not val: return None
     s = str(val).strip()
     if s in ('-', '', 'None'): return None
+    # Google Sheets lähettää ajat UTC-muodossa, Suomi on UTC+3
+    # Esim. "2026-05-18T21:00:00.000Z" = 19.5. Suomen aikaa
+    if 'T' in s or 'Z' in s:
+        try:
+            s_clean = s.replace('Z', '').replace('T', ' ')
+            d = datetime.strptime(s_clean[:19], '%Y-%m-%d %H:%M:%S')
+            d = d + timedelta(hours=3)  # UTC → Suomi
+            return d
+        except:
+            pass
     for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%d.%m.%Y'):
         try:
             return datetime.strptime(s[:10], fmt[:10])
