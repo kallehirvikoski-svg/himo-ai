@@ -47,6 +47,7 @@ def build_system_prompt(data):
         except:
             continue
         etusivu_map[era] = {
+            'parasta':          r[7]  if len(r) > 7  else '-',
             'etiketti_maara':   r[14] if len(r) > 14 else '-',
             'etiketti_tilanne': r[15] if len(r) > 15 else '-',
             'kalle_pct':        r[21] if len(r) > 21 else '-',
@@ -88,7 +89,7 @@ def build_system_prompt(data):
         sek_tankki  = r[8]  if len(r) > 8  else '-'
         keittopv    = r[9]  if len(r) > 9  else '-'
         astiointi   = r[10] if len(r) > 10 else '-'
-        parasta     = r[11] if len(r) > 11 else '-'
+        parasta     = str(e.get('parasta') or '-').strip()  # ETUSIVUlta KK/VV muodossa
         abv         = r[12] if len(r) > 12 else '-'
         saanti      = r[13] if len(r) > 13 else '-'
         tolkit_arvio = t.get('tolkit') or saanti or '-'
@@ -149,31 +150,62 @@ def build_system_prompt(data):
         lines.append(f"  Status: {status}")
         erat_lines.append('\n'.join(lines))
 
-    from datetime import datetime
-    today = datetime.now().strftime('%-d.%-m.%Y')
+    from datetime import datetime, timedelta
+    today = datetime.now()
+    today_str = today.strftime('%-d.%-m.%Y')
+
+    # Lasketaan tulevat tiistait, keskiviikot ja torstait seuraavalle 16 viikolle
+    tiistait = []
+    keskiviikot = []
+    torstait = []
+    d = today
+    for _ in range(16 * 7):
+        wd = d.weekday()  # 0=ma, 1=ti, 2=ke, 3=to
+        ds = d.strftime('%-d.%-m.%Y')
+        if wd == 1 and len(tiistait) < 16: tiistait.append(ds)
+        if wd == 2 and len(keskiviikot) < 16: keskiviikot.append(ds)
+        if wd == 3 and len(torstait) < 16: torstait.append(ds)
+        d += timedelta(days=1)
+
+    kalenteri = f"""Tulevat tiistait (astiointi/tölkitys):
+{', '.join(tiistait)}
+
+Tulevat keskiviikot (keitto):
+{', '.join(keskiviikot)}
+
+Tulevat torstait (keitto):
+{', '.join(torstait)}"""
 
     return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, täsmällinen ja ammattimainen.
 
-Data haettu suoraan Himo_Tuotanto Google Sheetistä ({today}).
+Tänään on {today_str}.
+Data haettu suoraan Himo_Tuotanto Google Sheetistä ({today_str}).
 
 === ERÄT ===
 
 {chr(10).join(erat_lines)}
 
-=== PANIMON RYTMI JA AIKATAULUTULOGIIKKA ===
+=== PANIMON RYTMI JA KALENTERI ===
 Tölkitys (astiointi) tapahtuu yleensä tiistaisin.
 Keittopäivät ovat yleensä keskiviikkoisin ja torstaisin.
-Valmistusaika keittopäivästä astiointiin on noin 5 viikkoa (35 päivää).
 
-Kun joku kysyy seuraavaa keittopäivää tai uuden erän aloitusta:
-- Ehdota aina seuraavaa vapaata keskiviikkoa tai torstaia
-- Laske astiointi noin 5 viikkoa keittopäivästä ja ehdota lähintä tiistaita
+=== PANIMON RYTMI JA KALENTERI ===
+Tölkitys (astiointi) tapahtuu yleensä tiistaisin.
+Keittopäivät ovat yleensä keskiviikkoisin ja torstaisin.
 
-Kun joku kysyy milloin tankki vapautuu tai koska sinne voi keittää:
-- Tankki vapautuu astiointipäivänä
-- Ehdota seuraavaa keskiviikkoa tai torstaia astiointipäivän jälkeen keittopäiväksi
-- Laske astiointi 5 viikkoa siitä ja ehdota lähintä tiistaita
-- Mainitse aina että aikataulu voi vaihdella
+TÄRKEÄ SÄÄNTÖ — astiointipäivät:
+- Jos erällä on astiointipäivä Sheetsissä, käytä AINA sitä. Älä laske tai ehdota muuta.
+- Jos joku kysyy SUUNNITTEILLA olevan erän astiointia (ei vielä Sheetsissä), ehdota keittopäivä + 35 päivää ja valitse lähin päivä alla olevalta tiistait-listalta. Sano selvästi että kyseessä on alustava arvio ja todellinen päivä riippuu tilanteesta.
+- Jos joku kysyy milloin pitää keittää jotta erä on valmis tiettyyn päivään, laske: haluttu astiointipäivä - 35 päivää ja valitse lähin keskiviikko tai torstai alla olevalta listalta.
+
+Esimerkki eteenpäin: "Jos keitetään 15.4., astiointi olisi alustavasti tiistaina 20.5. Todellinen päivä vahvistuu myöhemmin."
+Esimerkki taaksepäin: "Jos erän pitää olla valmis 19.5., keitto pitäisi olla 14.-15.4. paikkeilla."
+
+Käytä AINA alla olevaa kalenteria päivämäärien tarkistamiseen — älä laske päivämääriä itse.
+
+{kalenteri}
+
+Mainitse aina että aikataulu voi vaihdella.
 
 === PARASTA ENNEN -VAROITUKSET ===
 Erä 248 Kateus: 12/26 | Erä 249 Katellaan: 12/26 | Erä 262 Sytytys: Micro: 1/27 (lyhyt!)
