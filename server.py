@@ -38,25 +38,22 @@ def next_after(d, weekday):
 
 def build_planning_tables():
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # Keitto → arvioitu astiointi (keitto + 35 pv → lähin ti)
     keitto_to_ast = []
     d = today
     added = 0
     while added < 10:
-        if d.weekday() in (2, 3):  # ke tai to
-            ast = next_after(d + timedelta(days=34), 1)  # lähin ti 35 pv jälkeen
+        if d.weekday() in (2, 3):
+            ast = next_after(d + timedelta(days=34), 1)
             p = 'ke' if d.weekday() == 2 else 'to'
             keitto_to_ast.append(f"Keitto {p} {fmt_date(d)} → arvioitu astiointi ti {fmt_date(ast)}")
             added += 1
         d += timedelta(days=1)
 
-    # Astiointi → arvioitu keitto (astiointi - 35 pv → lähin ke tai to)
     ast_to_keitto = []
     d = today
     added = 0
     while added < 10:
-        if d.weekday() == 1:  # tiistai
+        if d.weekday() == 1:
             ke = next_after(d - timedelta(days=36), 2)
             to = next_after(d - timedelta(days=36), 3)
             brew = min(ke, to)
@@ -67,7 +64,7 @@ def build_planning_tables():
 
     return '\n'.join(keitto_to_ast), '\n'.join(ast_to_keitto)
 
-
+def build_system_prompt(data):
     kalle = data.get('kalle', [])
     teemu = data.get('teemu', [])
     etusivu = data.get('etusivu', [])
