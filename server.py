@@ -288,8 +288,7 @@ Suunnittelutaulukoissa olevat ARVIOT ovat Pythonin laskemia — toista nekin tä
 
 {chr(10).join(erat_lines)}
 
-=== TANKKITILANNE (laskettu Pythonilla) ===
-Käytä VAIN näitä tankkitietoja. Älä laske tai päättele tankkitilanteita itse.
+=== TANKKITILANNE (laskettu Pythonilla — käytä VAIN näitä, älä laske itse) ===
 {chr(10).join(tankki_lines)}
 
 === SUUNNITTELUTAULUKOT (Python-laskettu, ~35 pv valmistusaika) ===
