@@ -321,7 +321,7 @@ async function sendMessage() {
       })
     });
     const data = await response.json();
-    const reply = data.content?.map(b => b.text || '').join('') || 'Virhe: ei vastausta.';
+    const reply = data.content?.map(b => b.text || '').join('') || JSON.stringify(data);
     document.getElementById('thinking')?.remove();
     addMessage('assistant', escapeHtml(reply));
     messages.push({ role: 'assistant', content: reply });
