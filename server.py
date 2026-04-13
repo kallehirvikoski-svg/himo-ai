@@ -182,9 +182,18 @@ def build_system_prompt(data):
         try: omakust_str = f'{float(str(omakust)):.2f} €'
         except: omakust_str = ''
 
+        # Onko erä jo tankissa?
+        today_d = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        if keittopv_d and keittopv_d > today_d:
+            tankki_status = f"TULOSSA — keitto {fmt_date(keittopv_d)}, ei vielä tankissa"
+        elif keittopv_d and keittopv_d <= today_d:
+            tankki_status = f"KÄYMÄSSÄ — keitetty {fmt_date(keittopv_d)}"
+        else:
+            tankki_status = "tila tuntematon"
+
         lines = [
             f"Erä {era} | {nimi} | {tyyli}",
-            f"  Tankki: {tankki_str}",
+            f"  Tankki: {tankki_str} ({tankki_status})",
             f"  Keitto: {fmt_date(keittopv_d)} | Astiointi: {fmt_vko(astiointi_d)} | Parasta ennen: {parasta}",
             f"  ABV: {abv}% | Tölkit: {tolkit_arvio}{keg_str}",
         ]
