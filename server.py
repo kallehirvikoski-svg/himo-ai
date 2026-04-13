@@ -267,9 +267,9 @@ def build_system_prompt(data):
         if t in tankki_nykyinen:
             ast_d, era_n, nimi_t, keitto_d = tankki_nykyinen[t]
             if keitto_d and keitto_d > today_d:
-                tankki_lines.append(f"Tankki {t}: TULOSSA — Erä {era_n} ({nimi_t}) keitetään {fmt_date(keitto_d)}, astiointi {fmt_vko(ast_d)}")
+                tankki_lines.append(f"Tankki {t}: TULOSSA — Erä {era_n} ({nimi_t}) keitetään {fmt_date(keitto_d)}, astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(ast_d)}")
             else:
-                tankki_lines.append(f"Tankki {t}: KÄYMÄSSÄ — Erä {era_n} ({nimi_t}), astiointi {fmt_vko(ast_d)}")
+                tankki_lines.append(f"Tankki {t}: KÄYMÄSSÄ — Erä {era_n} ({nimi_t}), astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(ast_d)}")
         else:
             tankki_lines.append(f"Tankki {t}: VAPAA")
 
@@ -280,9 +280,11 @@ def build_system_prompt(data):
 Tänään on {today_str} (viikko {today_vko}).
 Data haettu suoraan Himo_Tuotanto Google Sheetistä.
 
-PÄIVÄMÄÄRÄT OVAT PYHIÄ:
-Toista Sheetsin päivämäärät AINA täsmälleen sellaisina kuin ne näkyvät alla. Älä koskaan muuta, korjaa, pyöristä tai keksi päivämääriä. Jos päivämäärä puuttuu, sano että se puuttuu.
-Suunnittelutaulukoissa olevat ARVIOT ovat Pythonin laskemia — toista nekin täsmälleen sellaisina kuin ne näkyvät.
+PÄIVÄMÄÄRÄT OVAT PYHIÄ — EHDOTON SÄÄNTÖ:
+Toista päivämäärät AINA täsmälleen sellaisina kuin ne näkyvät alla.
+ÄLÄ KOSKAAN muuta, korjaa, laske tai keksi päivämääriä.
+ÄLÄ KOSKAAN lisää tai vähennä päiviä päivämääristä.
+Jos vastaus vaatii päivämäärälaskentaa jota ei ole alla valmiina, sano: "En laske päivämääriä — tarkista Tankkivaraus-välilehdeltä."
 
 === ERÄT ===
 
