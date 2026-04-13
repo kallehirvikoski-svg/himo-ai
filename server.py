@@ -193,15 +193,33 @@ Keittopäivät ovat yleensä keskiviikkoisin ja torstaisin.
 Tölkitys (astiointi) tapahtuu yleensä tiistaisin.
 Keittopäivät ovat yleensä keskiviikkoisin ja torstaisin.
 
-TÄRKEÄ SÄÄNTÖ — astiointipäivät:
-- Jos erällä on astiointipäivä Sheetsissä, käytä AINA sitä. Älä laske tai ehdota muuta.
-- Jos joku kysyy SUUNNITTEILLA olevan erän astiointia (ei vielä Sheetsissä), ehdota keittopäivä + 35 päivää ja valitse lähin päivä alla olevalta tiistait-listalta. Sano selvästi että kyseessä on alustava arvio ja todellinen päivä riippuu tilanteesta.
-- Jos joku kysyy milloin pitää keittää jotta erä on valmis tiettyyn päivään, laske: haluttu astiointipäivä - 35 päivää ja valitse lähin keskiviikko tai torstai alla olevalta listalta.
+=== PANIMON RYTMI JA KALENTERI ===
+Normaali rytmi:
+- Keittopäivät: keskiviikko ja torstai (1 erä/päivä, sourit joskus 2 päivää)
+- Astiointipäivät: tiistai (normaali 2 erää/päivä, max 3 erää/päivä)
+
+Kapasiteetti:
+- Keitto: 1 erä per päivä (sourit 2 päivää)
+- Astiointi: normaali 2 erää/päivä, max 3 erää/päivä
+
+Kun ehdotat keittopäiviä:
+- Ehdota ensin keskiviikkoja ja torstaitta kalenterista
+- Jos tarvitaan enemmän keittoja (3+/viikko), voi ehdottaa myös perjantaita — mainitse että tämä vaatii rytmin muutosta
+- Älä laske päivämääriä itse, käytä alla olevaa kalenteria
+
+Kun ehdotat astiointipäiviä:
+- Ehdota ensin tiistaitta kalenterista
+- Jos tarvitaan useampi astiointipäivä (yli 3 erää/viikko tai aika on tiukka), ehdota myös keskiviikkoa — mainitse että tämä vaatii rytmin muutosta
+- Normaali kapasiteetti 2 erää/tiistai, max 3 erää/tiistai
+
+Astiointipäivät Sheetsissä:
+- Jos erällä on astiointipäivä jo Sheetsissä, käytä AINA sitä — älä laske tai ehdota muuta
+- Jos erällä ei ole astiointipäivää (suunnittelu), arvioi keittopäivä + noin 5 viikkoa → lähin tiistai. Sano selvästi että kyseessä on alustava arvio — todellinen päivä riippuu tankki- ja henkilöstötilanteesta
 
 Esimerkki eteenpäin: "Jos keitetään 15.4., astiointi olisi alustavasti tiistaina 20.5. Todellinen päivä vahvistuu myöhemmin."
-Esimerkki taaksepäin: "Jos erän pitää olla valmis 19.5., keitto pitäisi olla 14.-15.4. paikkeilla."
-
-Käytä AINA alla olevaa kalenteria päivämäärien tarkistamiseen — älä laske päivämääriä itse.
+Esimerkki taaksepäin: "Jos erän pitää olla valmis 19.5., keitto pitäisi olla noin 14.-15.4. paikkeilla."
+Esimerkki kapasiteetista: "3 keittoa viikolla 16 onnistuu ke 15.4., to 16.4. ja pe 17.4. — perjantai vaatii rytmin muutosta."
+Esimerkki astioinnista: "5 erää viikolla 29 ei mahdu yhteen tiistaihin (max 3). Ehdotan ti 14.7. (3 erää) + ke 15.7. (2 erää) — keskiviikko vaatii rytmin muutosta."
 
 {kalenteri}
 
