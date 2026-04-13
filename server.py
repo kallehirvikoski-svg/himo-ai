@@ -2,7 +2,7 @@ import os
 import json
 import urllib.request
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
@@ -31,7 +31,43 @@ def fmt_date(d):
 def fmt_vko(d):
     return f"{d.strftime('%-d.%-m.%Y')} (vko {d.isocalendar()[1]})" if d else '-'
 
-def build_system_prompt(data):
+def next_after(d, weekday):
+    days = (weekday - d.weekday()) % 7
+    if days == 0: days = 7
+    return d + timedelta(days=days)
+
+def build_planning_tables():
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Keitto → arvioitu astiointi (keitto + 35 pv → lähin ti)
+    keitto_to_ast = []
+    d = today
+    added = 0
+    while added < 10:
+        if d.weekday() in (2, 3):  # ke tai to
+            ast = next_after(d + timedelta(days=34), 1)  # lähin ti 35 pv jälkeen
+            p = 'ke' if d.weekday() == 2 else 'to'
+            keitto_to_ast.append(f"Keitto {p} {fmt_date(d)} → arvioitu astiointi ti {fmt_date(ast)}")
+            added += 1
+        d += timedelta(days=1)
+
+    # Astiointi → arvioitu keitto (astiointi - 35 pv → lähin ke tai to)
+    ast_to_keitto = []
+    d = today
+    added = 0
+    while added < 10:
+        if d.weekday() == 1:  # tiistai
+            ke = next_after(d - timedelta(days=36), 2)
+            to = next_after(d - timedelta(days=36), 3)
+            brew = min(ke, to)
+            p = 'ke' if brew.weekday() == 2 else 'to'
+            ast_to_keitto.append(f"Astiointi ti {fmt_date(d)} → arvioitu keitto {p} {fmt_date(brew)}")
+            added += 1
+        d += timedelta(days=1)
+
+    return '\n'.join(keitto_to_ast), '\n'.join(ast_to_keitto)
+
+
     kalle = data.get('kalle', [])
     teemu = data.get('teemu', [])
     etusivu = data.get('etusivu', [])
@@ -161,17 +197,30 @@ def build_system_prompt(data):
         lines.append(f"  Status: {status}")
         erat_lines.append('\n'.join(lines))
 
+    keitto_to_ast, ast_to_keitto = build_planning_tables()
+
     return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, täsmällinen ja ammattimainen.
 
 Tänään on {today_str} (viikko {today_vko}).
 Data haettu suoraan Himo_Tuotanto Google Sheetistä.
 
 PÄIVÄMÄÄRÄT OVAT PYHIÄ:
-Toista päivämäärät AINA täsmälleen sellaisina kuin ne näkyvät alla. Älä koskaan muuta, korjaa, pyöristä tai keksi päivämääriä. Jos päivämäärä puuttuu, sano että se puuttuu.
+Toista Sheetsin päivämäärät AINA täsmälleen sellaisina kuin ne näkyvät alla. Älä koskaan muuta, korjaa, pyöristä tai keksi päivämääriä. Jos päivämäärä puuttuu, sano että se puuttuu.
+Suunnittelutaulukoissa olevat ARVIOT ovat Pythonin laskemia — toista nekin täsmälleen sellaisina kuin ne näkyvät.
 
 === ERÄT ===
 
 {chr(10).join(erat_lines)}
+
+=== SUUNNITTELUTAULUKOT (Python-laskettu, ~35 pv valmistusaika) ===
+Käytä näitä kun suunnitellaan tulevia eriä joilla ei vielä ole päivämääriä Sheetsissä.
+Kerro aina että kyseessä on alustava arvio — todellinen päivä vahvistuu tilanteen mukaan.
+
+Keitto → arvioitu astiointi:
+{keitto_to_ast}
+
+Astiointi → arvioitu keitto:
+{ast_to_keitto}
 
 === PANIMON RYTMI ===
 - Keittopäivät: yleensä ke ja to, 1 erä/päivä
