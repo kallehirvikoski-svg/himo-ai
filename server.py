@@ -220,6 +220,59 @@ def build_system_prompt(data):
         lines.append(f"  Status: {status}")
         erat_lines.append('\n'.join(lines))
 
+    # Laske tankkitilanne Pythonilla
+    today_d = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Kerää tankkivaraukset
+    varaukset = []
+    for r in kalle[1:]:
+        if not r or not r[0]: continue
+        try: era_n = int(float(str(r[0])))
+        except: continue
+        if era_n < 248: continue
+
+        nimi_t = (str(teemu_map.get(str(era_n), {}).get('nimi') or '')).strip() or str(r[2] if len(r) > 2 else '').strip() or '-'
+        ast_d = parse_date(r[10] if len(r) > 10 else None)
+        siirto_d = parse_date(r[7] if len(r) > 7 else None)
+        keitto_d = parse_date(r[9] if len(r) > 9 else None)
+
+        try: prim = int(float(str(r[6]))) if r[6] and str(r[6]) not in ('-','None') else None
+        except: prim = None
+        try: sek = int(float(str(r[8]))) if r[8] and str(r[8]) not in ('-','None') else None
+        except: sek = None
+
+        if not ast_d: continue
+
+        if prim:
+            vapautuu = siirto_d if siirto_d else ast_d
+            varaukset.append((prim, era_n, nimi_t, ast_d, vapautuu, keitto_d))
+        if sek and siirto_d:
+            varaukset.append((sek, era_n, nimi_t, ast_d, ast_d, keitto_d))
+
+    tankki_aikajana = {}
+    for tankki, era_n, nimi_t, ast_d, vapautuu, keitto_d in varaukset:
+        tankki_aikajana.setdefault(tankki, []).append((vapautuu, ast_d, era_n, nimi_t, keitto_d))
+    for t in tankki_aikajana:
+        tankki_aikajana[t].sort()
+
+    tankki_nykyinen = {}
+    for tankki, lista in tankki_aikajana.items():
+        for vapautuu, ast_d, era_n, nimi_t, keitto_d in lista:
+            if vapautuu > today_d:
+                tankki_nykyinen[tankki] = (ast_d, era_n, nimi_t, keitto_d)
+                break
+
+    tankki_lines = []
+    for t in range(1, 11):
+        if t in tankki_nykyinen:
+            ast_d, era_n, nimi_t, keitto_d = tankki_nykyinen[t]
+            if keitto_d and keitto_d > today_d:
+                tankki_lines.append(f"Tankki {t}: TULOSSA — Erä {era_n} ({nimi_t}) keitetään {fmt_date(keitto_d)}, astiointi {fmt_vko(ast_d)}")
+            else:
+                tankki_lines.append(f"Tankki {t}: KÄYMÄSSÄ — Erä {era_n} ({nimi_t}), astiointi {fmt_vko(ast_d)}")
+        else:
+            tankki_lines.append(f"Tankki {t}: VAPAA")
+
     keitto_to_ast, ast_to_keitto = build_planning_tables()
 
     return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, täsmällinen ja ammattimainen.
@@ -234,6 +287,10 @@ Suunnittelutaulukoissa olevat ARVIOT ovat Pythonin laskemia — toista nekin tä
 === ERÄT ===
 
 {chr(10).join(erat_lines)}
+
+=== TANKKITILANNE (laskettu Pythonilla) ===
+Käytä VAIN näitä tankkitietoja. Älä laske tai päättele tankkitilanteita itse.
+{chr(10).join(tankki_lines)}
 
 === SUUNNITTELUTAULUKOT (Python-laskettu, ~35 pv valmistusaika) ===
 Käytä näitä kun suunnitellaan tulevia eriä joilla ei vielä ole päivämääriä Sheetsissä.
