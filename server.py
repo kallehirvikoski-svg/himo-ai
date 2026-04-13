@@ -291,19 +291,13 @@ Erä 248 Kateus: 12/26 | Erä 249 Katellaan: 12/26 | Erä 262 Sytytys: Micro: 1/
 
 Vastaa täsmällisesti. Jos dataa ei ole, sano rehellisesti. Älä keksi tietoja."""
 
-cached_prompt = None
-
 def get_system_prompt():
-    global cached_prompt
     try:
         data = fetch_sheet_data()
-        cached_prompt = build_system_prompt(data)
-        print('Sheets-data haettu onnistuneesti.')
+        return build_system_prompt(data)
     except Exception as e:
         print(f'Sheets-haku epäonnistui: {e}')
-        if not cached_prompt:
-            cached_prompt = 'Olet Panimo Himon tuotantoassistentti. Sheets-data ei ole saatavilla juuri nyt.'
-    return cached_prompt
+        return 'Olet Panimo Himon tuotantoassistentti. Sheets-data ei ole saatavilla juuri nyt.'
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -400,3 +394,4 @@ if __name__ == '__main__':
     print('Haetaan Sheets-data...')
     get_system_prompt()
     HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
+    
