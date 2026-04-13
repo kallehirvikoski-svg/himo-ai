@@ -2,6 +2,7 @@ import os
 import json
 import urllib.request
 import urllib.error
+from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
@@ -13,12 +14,25 @@ def fetch_sheet_data():
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read())
 
+def build_calendar():
+    today = datetime.now()
+    monday = today - timedelta(days=today.weekday())
+    viikot = []
+    for w in range(20):
+        base = monday + timedelta(weeks=w)
+        vnum = base.isocalendar()[1]
+        ti = (base + timedelta(days=1)).strftime('%-d.%-m.')
+        ke = (base + timedelta(days=2)).strftime('%-d.%-m.')
+        to = (base + timedelta(days=3)).strftime('%-d.%-m.')
+        pe = (base + timedelta(days=4)).strftime('%-d.%-m.')
+        viikot.append(f"Viikko {vnum}: ti {ti}, ke {ke}, to {to}, pe {pe}")
+    return '\n'.join(viikot)
+
 def build_system_prompt(data):
     kalle = data.get('kalle', [])
     teemu = data.get('teemu', [])
     etusivu = data.get('etusivu', [])
 
-    # Teemu lookup: era -> tiedot
     teemu_map = {}
     for r in teemu[1:]:
         if not r or not r[0]: continue
@@ -38,7 +52,6 @@ def build_system_prompt(data):
             'keg30':         r[10] if len(r) > 10 else '0',
         }
 
-    # ETUSIVU lookup: era -> etikettitiedot
     etusivu_map = {}
     for r in etusivu[1:]:
         if not r or not r[0]: continue
@@ -77,6 +90,7 @@ def build_system_prompt(data):
         keg20         = str(t.get('keg20') or '0').strip()
         keg30         = str(t.get('keg30') or '0').strip()
 
+        parasta          = str(e.get('parasta') or '-').strip()
         etiketti_tilanne = str(e.get('etiketti_tilanne') or '-').strip()
         etiketti_maara   = str(e.get('etiketti_maara') or '-').strip()
         kalle_pct        = str(e.get('kalle_pct') or '-').strip()
@@ -89,7 +103,6 @@ def build_system_prompt(data):
         sek_tankki  = r[8]  if len(r) > 8  else '-'
         keittopv    = r[9]  if len(r) > 9  else '-'
         astiointi   = r[10] if len(r) > 10 else '-'
-        parasta     = str(e.get('parasta') or '-').strip()  # ETUSIVUlta KK/VV muodossa
         abv         = r[12] if len(r) > 12 else '-'
         saanti      = r[13] if len(r) > 13 else '-'
         tolkit_arvio = t.get('tolkit') or saanti or '-'
@@ -150,80 +163,45 @@ def build_system_prompt(data):
         lines.append(f"  Status: {status}")
         erat_lines.append('\n'.join(lines))
 
-    from datetime import datetime, timedelta
     today = datetime.now()
     today_str = today.strftime('%-d.%-m.%Y')
-
-    # Lasketaan tulevat tiistait, keskiviikot ja torstait seuraavalle 16 viikolle
-    tiistait = []
-    keskiviikot = []
-    torstait = []
-    d = today
-    for _ in range(16 * 7):
-        wd = d.weekday()  # 0=ma, 1=ti, 2=ke, 3=to
-        ds = d.strftime('%-d.%-m.%Y')
-        if wd == 1 and len(tiistait) < 16: tiistait.append(ds)
-        if wd == 2 and len(keskiviikot) < 16: keskiviikot.append(ds)
-        if wd == 3 and len(torstait) < 16: torstait.append(ds)
-        d += timedelta(days=1)
-
-    kalenteri = f"""Tulevat tiistait (astiointi/tölkitys):
-{', '.join(tiistait)}
-
-Tulevat keskiviikot (keitto):
-{', '.join(keskiviikot)}
-
-Tulevat torstait (keitto):
-{', '.join(torstait)}"""
+    today_viikko = today.isocalendar()[1]
+    kalenteri = build_calendar()
 
     return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, täsmällinen ja ammattimainen.
 
-Tänään on {today_str}.
+Tänään on {today_str} (viikko {today_viikko}).
 Data haettu suoraan Himo_Tuotanto Google Sheetistä ({today_str}).
 
 === ERÄT ===
 
 {chr(10).join(erat_lines)}
 
-=== PANIMON RYTMI JA KALENTERI ===
-Tölkitys (astiointi) tapahtuu yleensä tiistaisin.
-Keittopäivät ovat yleensä keskiviikkoisin ja torstaisin.
-
-=== PANIMON RYTMI JA KALENTERI ===
-Tölkitys (astiointi) tapahtuu yleensä tiistaisin.
-Keittopäivät ovat yleensä keskiviikkoisin ja torstaisin.
-
-=== PANIMON RYTMI JA KALENTERI ===
+=== PANIMON RYTMI JA KAPASITEETTI ===
 Normaali rytmi:
-- Keittopäivät: keskiviikko ja torstai (1 erä/päivä, sourit joskus 2 päivää)
-- Astiointipäivät: tiistai (normaali 2 erää/päivä, max 3 erää/päivä)
+- Keittopäivät: keskiviikko ja torstai. 1 erä per päivä (sourit joskus 2 päivää).
+- Astiointipäivät: tiistai. Normaali 2 erää/päivä, max 3 erää/päivä.
 
-Kapasiteetti:
-- Keitto: 1 erä per päivä (sourit 2 päivää)
-- Astiointi: normaali 2 erää/päivä, max 3 erää/päivä
+Jos tarvitaan enemmän kapasiteettia:
+- Keitto: voi lisätä perjantain — mainitse että vaatii rytmin muutosta.
+- Astiointi: voi lisätä keskiviikon — mainitse että vaatii rytmin muutosta.
 
-Kun ehdotat keittopäiviä:
-- Ehdota ensin keskiviikkoja ja torstaitta kalenterista
-- Jos tarvitaan enemmän keittoja (3+/viikko), voi ehdottaa myös perjantaita — mainitse että tämä vaatii rytmin muutosta
-- Älä laske päivämääriä itse, käytä alla olevaa kalenteria
+Astiointipäivät:
+- Jos erällä on astiointipäivä Sheetsissä: käytä AINA sitä. Älä laske tai muuta.
+- Jos erällä ei ole astiointipäivää (suunnittelu): arvioi keittopäivä + noin 5 viikkoa → lähin tiistai kalenterista. Kerro että kyseessä on alustava arvio.
 
-Kun ehdotat astiointipäiviä:
-- Ehdota ensin tiistaitta kalenterista
-- Jos tarvitaan useampi astiointipäivä (yli 3 erää/viikko tai aika on tiukka), ehdota myös keskiviikkoa — mainitse että tämä vaatii rytmin muutosta
-- Normaali kapasiteetti 2 erää/tiistai, max 3 erää/tiistai
+Päivämäärät:
+- Käytä AINA alla olevaa kalenteria. Älä laske päivämääriä itse.
+- Kun joku mainitsee viikonumeron, etsi se suoraan kalenterista.
+- Käänteinen laskenta: jos haluttu astiointipäivä on tiedossa, etsi kalenterista noin 5 viikkoa aiempi ke tai to keittopäiväksi.
 
-Astiointipäivät Sheetsissä:
-- Jos erällä on astiointipäivä jo Sheetsissä, käytä AINA sitä — älä laske tai ehdota muuta
-- Jos erällä ei ole astiointipäivää (suunnittelu), arvioi keittopäivä + noin 5 viikkoa → lähin tiistai. Sano selvästi että kyseessä on alustava arvio — todellinen päivä riippuu tankki- ja henkilöstötilanteesta
+Esimerkkivastauksia:
+- "Jos keitetään ke 15.4., astiointi olisi alustavasti ti 20.5. Todellinen päivä vahvistuu myöhemmin."
+- "Jos erän pitää olla valmis 19.5., keitto pitäisi olla noin ke 15.4. tai to 16.4. paikkeilla."
+- "5 erää viikolla 29 ei mahdu yhteen tiistaihin (max 3). Ehdotan ti 14.7. (3 erää) + ke 15.7. (2 erää) — keskiviikko vaatii rytmin muutosta."
 
-Esimerkki eteenpäin: "Jos keitetään 15.4., astiointi olisi alustavasti tiistaina 20.5. Todellinen päivä vahvistuu myöhemmin."
-Esimerkki taaksepäin: "Jos erän pitää olla valmis 19.5., keitto pitäisi olla noin 14.-15.4. paikkeilla."
-Esimerkki kapasiteetista: "3 keittoa viikolla 16 onnistuu ke 15.4., to 16.4. ja pe 17.4. — perjantai vaatii rytmin muutosta."
-Esimerkki astioinnista: "5 erää viikolla 29 ei mahdu yhteen tiistaihin (max 3). Ehdotan ti 14.7. (3 erää) + ke 15.7. (2 erää) — keskiviikko vaatii rytmin muutosta."
-
+=== KALENTERI (viikkonumeroittain) ===
 {kalenteri}
-
-Mainitse aina että aikataulu voi vaihdella.
 
 === PARASTA ENNEN -VAROITUKSET ===
 Erä 248 Kateus: 12/26 | Erä 249 Katellaan: 12/26 | Erä 262 Sytytys: Micro: 1/27 (lyhyt!)
