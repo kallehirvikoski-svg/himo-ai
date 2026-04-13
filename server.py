@@ -42,8 +42,14 @@ def parse_date(val):
             continue
     return None
 
+PAIVAT = ['ma', 'ti', 'ke', 'to', 'pe', 'la', 'su']
+
 def fmt_date(d):
     return d.strftime('%-d.%-m.%Y') if d else '-'
+
+def fmt_date_viikonpaiva(d):
+    if not d: return '-'
+    return f"{PAIVAT[d.weekday()]} {d.strftime('%-d.%-m.%Y')}"
 
 def fmt_vko(d):
     return f"{d.strftime('%-d.%-m.%Y')} (vko {d.isocalendar()[1]})" if d else '-'
@@ -194,7 +200,7 @@ def build_system_prompt(data, include_ideas=False):
         lines = [
             f"Erä {era} | {nimi} | {tyyli}",
             f"  Tankki: {tankki_str} ({tankki_status})",
-            f"  Keitto: {fmt_date(keittopv_d)} | Astiointi: {fmt_vko(astiointi_d)} | Parasta ennen: {parasta}",
+            f"  Keitto: {fmt_date_viikonpaiva(keittopv_d)} | Astiointi: {fmt_vko(astiointi_d)} | Parasta ennen: {parasta}",
             f"  ABV: {abv}% | Tölkit: {tolkit_arvio}{keg_str}",
         ]
         if adjunkti and str(adjunkti).strip() not in ('-', ''):
@@ -268,7 +274,7 @@ def build_system_prompt(data, include_ideas=False):
         if t in tankki_nykyinen:
             ast_d, era_n, nimi_t, keitto_d = tankki_nykyinen[t]
             if keitto_d and keitto_d > today_d:
-                tankki_lines.append(f"Tankki {t}: TULOSSA — Erä {era_n} ({nimi_t}) keitetään {fmt_date(keitto_d)}, astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(ast_d)}")
+                tankki_lines.append(f"Tankki {t}: TULOSSA — Erä {era_n} ({nimi_t}) keitetään {fmt_date_viikonpaiva(keitto_d)}, astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(ast_d)}")
             else:
                 tankki_lines.append(f"Tankki {t}: KÄYMÄSSÄ — Erä {era_n} ({nimi_t}), astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(ast_d)}")
         else:
