@@ -356,6 +356,7 @@ class Handler(BaseHTTPRequestHandler):
             body = self.rfile.read(length)
             try:
                 payload = json.loads(body)
+                payload['max_tokens'] = 2000
                 payload['system'] = get_system_prompt()
                 req = urllib.request.Request(
                     'https://api.anthropic.com/v1/messages',
@@ -376,6 +377,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(result)
             except urllib.error.HTTPError as e:
                 error_body = e.read()
+                print(f'Anthropic API virhe {e.code}: {error_body[:500]}')
                 self.send_response(e.code)
                 self.send_cors_headers()
                 self.send_header('Content-Type', 'application/json')
