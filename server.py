@@ -134,10 +134,24 @@ def build_system_prompt(data):
         except:
             omakust_str = ''
 
+        # Muodostetaan astiointipäivä viikkonumerolla
+        astiointi_str = str(astiointi)
+        try:
+            for fmt in ('%Y-%m-%d %H:%M:%S', '%d.%m.%Y', '%Y-%m-%d'):
+                try:
+                    ast_date = datetime.strptime(astiointi_str.split(' ')[0], fmt.split(' ')[0])
+                    vko = ast_date.isocalendar()[1]
+                    astiointi_str = f"{ast_date.strftime('%-d.%-m.%Y')} (vko {vko})"
+                    break
+                except:
+                    continue
+        except:
+            pass
+
         lines = [
             f"Erä {era} | {nimi} | {tyyli}",
             f"  Tankki: {tankki_str}",
-            f"  Keitto: {keittopv} | Astiointi: {astiointi} | Parasta ennen: {parasta}",
+            f"  Keitto: {keittopv} | Astiointi: {astiointi_str} | Parasta ennen: {parasta}",
             f"  ABV: {abv}% | Tölkit: {tolkit_arvio}{keg_str}",
         ]
         if adjunkti and str(adjunkti).strip() not in ('-', ''):
@@ -186,8 +200,10 @@ Jos tarvitaan enemmän kapasiteettia:
 - Keitto: voi lisätä perjantain — mainitse että vaatii rytmin muutosta.
 - Astiointi: voi lisätä keskiviikon — mainitse että vaatii rytmin muutosta.
 
-Astiointipäivät:
-- Jos erällä on astiointipäivä Sheetsissä: käytä AINA sitä. Älä laske tai muuta.
+Tankin vapautuminen:
+- Tankki vapautuu astiointipäivänä. Erätiedoissa näkyy astiointipäivä ja viikkonumero.
+- Kun tankki vapautuu, seuraava keittopäivä on sama viikko tai seuraava viikko — katso kalenterista kyseisen viikon ke tai to.
+- ÄLÄ laske "astiointi + N päivää". Katso astiointiviikko erätiedoista ja etsi se kalenterista.
 - Jos erällä ei ole astiointipäivää (suunnittelu): arvioi keittopäivä + noin 5 viikkoa → lähin tiistai kalenterista. Kerro että kyseessä on alustava arvio.
 
 Päivämäärät:
