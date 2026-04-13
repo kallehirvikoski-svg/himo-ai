@@ -14,19 +14,140 @@ def fetch_sheet_data():
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read())
 
-def build_calendar():
-    today = datetime.now()
-    monday = today - timedelta(days=today.weekday())
-    viikot = []
-    for w in range(20):
-        base = monday + timedelta(weeks=w)
-        vnum = base.isocalendar()[1]
-        ti = (base + timedelta(days=1)).strftime('%-d.%-m.')
-        ke = (base + timedelta(days=2)).strftime('%-d.%-m.')
-        to = (base + timedelta(days=3)).strftime('%-d.%-m.')
-        pe = (base + timedelta(days=4)).strftime('%-d.%-m.')
-        viikot.append(f"Viikko {vnum}: ti {ti}, ke {ke}, to {to}, pe {pe}")
-    return '\n'.join(viikot)
+def parse_date(val):
+    """Muuntaa Sheetsin päivämäärän datetime-objektiksi."""
+    if not val: return None
+    s = str(val).strip()
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%d.%m.%Y'):
+        try:
+            return datetime.strptime(s.split(' ')[0], fmt.split(' ')[0])
+        except:
+            continue
+    return None
+
+def fmt(d):
+    """Muotoilee datetime suomalaiseksi päivämääräksi."""
+    if not d: return '-'
+    return d.strftime('%-d.%-m.%Y')
+
+def fmt_vko(d):
+    """Muotoilee datetime päivämäärä + viikkonumero."""
+    if not d: return '-'
+    return f"{d.strftime('%-d.%-m.%Y')} (vko {d.isocalendar()[1]})"
+
+def next_weekday(d, weekday):
+    """Palauttaa seuraavan tietyn viikonpäivän d:n jälkeen (0=ma...6=su)."""
+    days_ahead = weekday - d.weekday()
+    if days_ahead <= 0:
+        days_ahead += 7
+    return d + timedelta(days=days_ahead)
+
+def next_brew_day(after_date):
+    """Palauttaa seuraavan keittopäivän (ke tai to) after_date jälkeen."""
+    ke = next_weekday(after_date, 2)  # keskiviikko
+    to = next_weekday(after_date, 3)  # torstai
+    return min(ke, to)
+
+def next_packaging_day(after_date):
+    """Palauttaa seuraavan tiistain after_date jälkeen."""
+    return next_weekday(after_date, 1)
+
+def estimated_packaging(brew_date):
+    """Arvioi astiointipäivän: keitto + 35 päivää → lähin tiistai."""
+    target = brew_date + timedelta(days=35)
+    return next_packaging_day(target - timedelta(days=1))
+
+def estimated_brew(packaging_date):
+    """Arvioi keittopäivän: astiointi - 35 päivää → lähin ke tai to."""
+    target = packaging_date - timedelta(days=35)
+    return next_brew_day(target - timedelta(days=1))
+
+def build_schedule(kalle_rows):
+    """Laskee tankki- ja aikataulutiedot suoraan datasta."""
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Tankkien tilanne
+    tankki_map = {}  # tankki_nro -> {era, nimi, astiointi}
+    for r in kalle_rows[1:]:
+        if not r or not r[0]: continue
+        try:
+            era = int(float(str(r[0])))
+        except:
+            continue
+        if era < 248: continue
+
+        astiointi = parse_date(r[10] if len(r) > 10 else None)
+        nimi = str(r[2] if len(r) > 2 else '-').strip() or '-'
+
+        # Primääri tankki
+        try:
+            prim = int(float(str(r[6])))
+        except:
+            prim = None
+
+        # Sekundääri tankki
+        try:
+            sek = int(float(str(r[8])))
+        except:
+            sek = None
+
+        siirtopv = parse_date(r[7] if len(r) > 7 else None)
+
+        if prim:
+            # Mikä erä on tankissa tänään?
+            # Jos siirto on jo tapahtunut, primääri on vapaa
+            if sek and siirtopv and siirtopv <= today:
+                # Erä on jo sekundäärissä
+                if sek not in tankki_map or tankki_map[sek].get('astiointi') is None or \
+                   (astiointi and tankki_map[sek].get('astiointi') and astiointi > tankki_map[sek]['astiointi']):
+                    tankki_map[sek] = {'era': era, 'nimi': nimi, 'astiointi': astiointi}
+            else:
+                # Erä on vielä primäärissä
+                if prim not in tankki_map or tankki_map[prim].get('astiointi') is None or \
+                   (astiointi and tankki_map[prim].get('astiointi') and astiointi > tankki_map[prim]['astiointi']):
+                    tankki_map[prim] = {'era': era, 'nimi': nimi, 'astiointi': astiointi}
+                # Merkitse myös sekundääri jos siirto tulevaisuudessa
+                if sek and siirtopv and siirtopv > today:
+                    if sek not in tankki_map:
+                        tankki_map[sek] = {'era': era, 'nimi': nimi, 'astiointi': astiointi, 'tulossa': True}
+
+    # Rakenna tankkilista
+    tankki_lines = []
+    for t in range(1, 11):
+        info = tankki_map.get(t)
+        if info:
+            ast = info.get('astiointi')
+            if ast and ast >= today:
+                vapautuu = fmt_vko(ast)
+                seuraava_keitto = fmt(next_brew_day(ast))
+                tankki_lines.append(
+                    f"Tankki {t}: Erä {info['era']} ({info['nimi']}) | "
+                    f"Astiointi: {vapautuu} | "
+                    f"Vapautuu, seuraava keitto: {seuraava_keitto}"
+                )
+            elif ast and ast < today:
+                tankki_lines.append(f"Tankki {t}: Erä {info['era']} ({info['nimi']}) | Astiointi oli {fmt(ast)} — tankki vapaa")
+            else:
+                tankki_lines.append(f"Tankki {t}: Erä {info['era']} ({info['nimi']}) | Astiointipäivä ei tiedossa")
+        else:
+            tankki_lines.append(f"Tankki {t}: Tyhjä — vapaa heti")
+
+    # Seuraavat vapaat keittopäivät (ke/to) seuraavalle 10 viikolle
+    # ja montako tankkia vapautuu mihinkin mennessä
+    brew_slots = []
+    check = today
+    for _ in range(70):  # 10 viikkoa * 7 päivää
+        wd = check.weekday()
+        if wd in (2, 3):  # ke tai to
+            vapaat_tankit = [t for t in range(1, 11)
+                           if t not in tankki_map or
+                           not tankki_map[t].get('astiointi') or
+                           tankki_map[t]['astiointi'] <= check]
+            paiva_nimi = 'ke' if wd == 2 else 'to'
+            brew_slots.append(f"{paiva_nimi} {fmt(check)} (vko {check.isocalendar()[1]}) — {len(vapaat_tankit)} tankkia vapaana: {', '.join(map(str, vapaat_tankit)) if vapaat_tankit else 'ei vapaita'}")
+        check += timedelta(days=1)
+
+    return '\n'.join(tankki_lines), '\n'.join(brew_slots[:20])
 
 def build_system_prompt(data):
     kalle = data.get('kalle', [])
@@ -102,7 +223,9 @@ def build_system_prompt(data):
         siirtopv    = r[7]  if len(r) > 7  else '-'
         sek_tankki  = r[8]  if len(r) > 8  else '-'
         keittopv    = r[9]  if len(r) > 9  else '-'
-        astiointi   = r[10] if len(r) > 10 else '-'
+        astiointi_raw = r[10] if len(r) > 10 else None
+        ast_date    = parse_date(astiointi_raw)
+        astiointi   = fmt_vko(ast_date) if ast_date else '-'
         abv         = r[12] if len(r) > 12 else '-'
         saanti      = r[13] if len(r) > 13 else '-'
         tolkit_arvio = t.get('tolkit') or saanti or '-'
@@ -134,24 +257,10 @@ def build_system_prompt(data):
         except:
             omakust_str = ''
 
-        # Muodostetaan astiointipäivä viikkonumerolla
-        astiointi_str = str(astiointi)
-        try:
-            for fmt in ('%Y-%m-%d %H:%M:%S', '%d.%m.%Y', '%Y-%m-%d'):
-                try:
-                    ast_date = datetime.strptime(astiointi_str.split(' ')[0], fmt.split(' ')[0])
-                    vko = ast_date.isocalendar()[1]
-                    astiointi_str = f"{ast_date.strftime('%-d.%-m.%Y')} (vko {vko})"
-                    break
-                except:
-                    continue
-        except:
-            pass
-
         lines = [
             f"Erä {era} | {nimi} | {tyyli}",
             f"  Tankki: {tankki_str}",
-            f"  Keitto: {keittopv} | Astiointi: {astiointi_str} | Parasta ennen: {parasta}",
+            f"  Keitto: {keittopv} | Astiointi: {astiointi} | Parasta ennen: {parasta}",
             f"  ABV: {abv}% | Tölkit: {tolkit_arvio}{keg_str}",
         ]
         if adjunkti and str(adjunkti).strip() not in ('-', ''):
@@ -178,46 +287,54 @@ def build_system_prompt(data):
         erat_lines.append('\n'.join(lines))
 
     today = datetime.now()
-    today_str = today.strftime('%-d.%-m.%Y')
-    today_viikko = today.isocalendar()[1]
-    kalenteri = build_calendar()
+    today_str = fmt(today)
+    today_vko = today.isocalendar()[1]
+
+    # Laskee Python-puolella tankkitilanne ja keittopäivät
+    tankki_status, brew_slots = build_schedule(kalle)
+
+    # Aikataulutusapufunktiot tekstinä promptiin
+    def sched_info():
+        lines = []
+        lines.append("Arvioi keitto → astiointi (keitto + 35 pv → lähin ti):")
+        test_dates = [today + timedelta(weeks=w) for w in range(1, 6)]
+        for d in test_dates:
+            # Etsi lähin ke
+            ke = d - timedelta(days=d.weekday()) + timedelta(days=2)
+            ast = estimated_packaging(ke)
+            lines.append(f"  Jos keitto {fmt(ke)} → arvioitu astiointi {fmt(ast)}")
+        lines.append("Arvioi astiointi → keitto (astiointi - 35 pv → lähin ke/to):")
+        for d in test_dates:
+            ti = d - timedelta(days=d.weekday()) + timedelta(days=1)
+            brew = estimated_brew(ti)
+            lines.append(f"  Jos astiointi {fmt(ti)} → arvioitu keitto {fmt(brew)}")
+        return '\n'.join(lines)
 
     return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, täsmällinen ja ammattimainen.
 
-Tänään on {today_str} (viikko {today_viikko}).
+Tänään on {today_str} (viikko {today_vko}).
 Data haettu suoraan Himo_Tuotanto Google Sheetistä ({today_str}).
 
 === ERÄT ===
 
 {chr(10).join(erat_lines)}
 
+=== TANKKITILANNE (laskettu Pythonilla Sheets-datasta) ===
+{tankki_status}
+
+=== SEURAAVAT VAPAAT KEITTOPÄIVÄT (laskettu Pythonilla) ===
+{brew_slots}
+
 === PANIMON RYTMI JA KAPASITEETTI ===
-Normaali rytmi:
-- Keittopäivät: keskiviikko ja torstai. 1 erä per päivä (sourit joskus 2 päivää).
+- Keittopäivät: ke ja to. 1 erä/päivä (sourit joskus 2 päivää).
 - Astiointipäivät: tiistai. Normaali 2 erää/päivä, max 3 erää/päivä.
+- Jos tarvitaan lisää kapasiteettia: keittoon pe, astiointiin ke — mainitse että vaatii rytmin muutosta.
 
-Jos tarvitaan enemmän kapasiteettia:
-- Keitto: voi lisätä perjantain — mainitse että vaatii rytmin muutosta.
-- Astiointi: voi lisätä keskiviikon — mainitse että vaatii rytmin muutosta.
-
-Tankin vapautuminen:
-- Tankki vapautuu astiointipäivänä. Erätiedoissa näkyy astiointipäivä ja viikkonumero.
-- Kun tankki vapautuu, seuraava keittopäivä on sama viikko tai seuraava viikko — katso kalenterista kyseisen viikon ke tai to.
-- ÄLÄ laske "astiointi + N päivää". Katso astiointiviikko erätiedoista ja etsi se kalenterista.
-- Jos erällä ei ole astiointipäivää (suunnittelu): arvioi keittopäivä + noin 5 viikkoa → lähin tiistai kalenterista. Kerro että kyseessä on alustava arvio.
-
-Päivämäärät:
-- Käytä AINA alla olevaa kalenteria. Älä laske päivämääriä itse.
-- Kun joku mainitsee viikonumeron, etsi se suoraan kalenterista.
-- Käänteinen laskenta: jos haluttu astiointipäivä on tiedossa, etsi kalenterista noin 5 viikkoa aiempi ke tai to keittopäiväksi.
-
-Esimerkkivastauksia:
-- "Jos keitetään ke 15.4., astiointi olisi alustavasti ti 20.5. Todellinen päivä vahvistuu myöhemmin."
-- "Jos erän pitää olla valmis 19.5., keitto pitäisi olla noin ke 15.4. tai to 16.4. paikkeilla."
-- "5 erää viikolla 29 ei mahdu yhteen tiistaihin (max 3). Ehdotan ti 14.7. (3 erää) + ke 15.7. (2 erää) — keskiviikko vaatii rytmin muutosta."
-
-=== KALENTERI (viikkonumeroittain) ===
-{kalenteri}
+TÄRKEÄ SÄÄNTÖ: Älä koskaan laske päivämääriä itse. Käytä AINA yllä olevia Pythonilla laskettuja tietoja.
+- Tankkien vapautumispäivät: katso TANKKITILANNE-osiosta.
+- Seuraavat keittopäivät: katso SEURAAVAT VAPAAT KEITTOPÄIVÄT-osiosta.
+- Arvioitu astiointi uudelle erälle (ei vielä Sheetsissä): keitto + 35 päivää → lähin tiistai. Kerro aina että kyseessä on alustava arvio.
+- Arvioitu keitto jos astiointi tiedossa: astiointi - 35 päivää → lähin ke tai to. Kerro aina että kyseessä on alustava arvio.
 
 === PARASTA ENNEN -VAROITUKSET ===
 Erä 248 Kateus: 12/26 | Erä 249 Katellaan: 12/26 | Erä 262 Sytytys: Micro: 1/27 (lyhyt!)
