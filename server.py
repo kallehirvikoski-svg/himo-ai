@@ -129,7 +129,12 @@ def build_tank_status(kalle, teemu_map):
         except:
             sek = None
 
-        # Tarvitaan astiointipäivä jotta tankilla on varaus
+        # Ohitetaan erät joilla ei ole astiointipäivää eikä keittopäivää
+        # (esim. suunnitteilla olevat erät joilla ei vielä mitään dataa)
+        if not ast_d and not keitto_d:
+            continue
+
+        # Tarvitaan astiointipäivä tankkivaraukseen
         if not ast_d:
             continue
 
@@ -137,13 +142,16 @@ def build_tank_status(kalle, teemu_map):
         if ast_d <= today:
             continue
 
-        if sek and siirto_d:
-            # Erä siirretty vaakkaan → varataan sekundääritankki
-            # Primääri vapautui siirtopäivänä → ei lasketa primääriin
+        if sek and siirto_d and siirto_d <= today:
+            # Siirto jo tapahtunut → erä on nyt vaakassa (sekundääri)
+            # Primääri vapautui siirtopäivänä
             tankki_varaukset.setdefault(sek, []).append((ast_d, era_n, nimi, keitto_d))
         elif prim:
             # Erä yhä primäärissä
             tankki_varaukset.setdefault(prim, []).append((ast_d, era_n, nimi, keitto_d))
+            # Jos siirto on suunniteltu tulevaisuuteen → varaa myös sekundääri ketjutusta varten
+            if sek and siirto_d and siirto_d > today:
+                tankki_varaukset.setdefault(sek, []).append((ast_d, era_n, nimi, keitto_d))
 
     # Rakenna tankkirivit 1-10
     tankki_lines = []
@@ -486,3 +494,4 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     print(f'Himo AI server käynnissä portissa {PORT}')
     HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
+    
