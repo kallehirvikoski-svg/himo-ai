@@ -66,7 +66,7 @@ def get_nimi(r, teemu_map, era_n):
     )
 
 def build_planning_tables():
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = (datetime.now() + timedelta(hours=3)).replace(hour=0, minute=0, second=0, microsecond=0)
     keitto_to_ast = []
     d = today
     added = 0
@@ -107,7 +107,7 @@ def build_tank_status(kalle, teemu_map):
     Ketjutus: tankki voi sisältää useita peräkkäisiä eriä.
     Vapautuminen = viimeisimmän erän astiointipäivä.
     """
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = (datetime.now() + timedelta(hours=3)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # tankki -> lista (astiointi_d, era_n, nimi, keitto_d, tulossa_bool)
     varaukset = {}
@@ -182,7 +182,7 @@ def build_system_prompt(data, include_ideas=False):
     kalle   = data.get('kalle', [])
     teemu   = data.get('teemu', [])
     etusivu = data.get('etusivu', [])
-    today   = datetime.now()
+    today   = datetime.now() + timedelta(hours=3)
     today_str = fmt_date(today)
     today_vko = today.isocalendar()[1]
 
@@ -320,6 +320,7 @@ PAIVAMAARAT OVAT PYHIA - EHDOTON SAANTO:
 Toista paivamaarat AINA tarkasti sellaisina kuin ne nakyy alla.
 ALA KOSKAAN muuta, korjaa, laske tai keksi paivamaaria.
 ALA KOSKAAN lisaa tai vahenna paivia paivamaaarista.
+ALA KOSKAAN kayta suhteellisia aikaviittauksia kuten "huomenna", "eilen", "ylihuomenna", "ensi viikolla" tms. Kayta AINA tarkkoja paivamaaria ja viikkonumeroita.
 Jos vastaus vaatii paivamaara laskentaa jota ei ole alla valmiina, sano: "En laske paivamaaria - tarkista Tankkivaraus-valilehdelta."
 
 === ERAT ===
