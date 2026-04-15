@@ -299,7 +299,6 @@ def build_system_prompt(data, include_ideas=False):
 
         lines = [
             f"Erä {era} | {nimi} | {tyyli}",
-            f"  Tankki: {tankki_str} ({tankki_status})",
             f"  Keitto: {fmt_date_viikonpaiva(keittopv_d)} | Astiointi: {fmt_vko(astiointi_d)} | Parasta ennen: {parasta}",
             f"  ABV: {abv}% | Tölkit: {tolkit_arvio}{keg_str}",
         ]
@@ -494,4 +493,3 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     print(f'Himo AI server käynnissä portissa {PORT}')
     HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
-    
