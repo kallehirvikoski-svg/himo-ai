@@ -245,6 +245,17 @@ def build_system_prompt(data, include_ideas=False):
         ean_keg30        = str(e.get('ean_keg30') or '-').strip()
 
         keittopv_d  = parse_date(r[9]  if len(r) > 9  else None)
+        siirtopv_d  = parse_date(r[7]  if len(r) > 7  else None)
+        try: prim_t = int(float(str(r[6]))) if r[6] and str(r[6]) not in ("-","None","") else None
+        except: prim_t = None
+        try: sek_t = int(float(str(r[8]))) if r[8] and str(r[8]) not in ("-","None","") else None
+        except: sek_t = None
+        if sek_t and siirtopv_d:
+            tankki_str = f"primaari {prim_t} -> vaakka {sek_t} ({fmt_date(siirtopv_d)})"
+        elif prim_t:
+            tankki_str = f"primaari {prim_t}"
+        else:
+            tankki_str = "-"
         astiointi_d = parse_date(r[10] if len(r) > 10 else None)
         abv         = r[12] if len(r) > 12 else '-'
         saanti      = r[13] if len(r) > 13 else '-'
@@ -269,6 +280,7 @@ def build_system_prompt(data, include_ideas=False):
 
         lines = [
             f"Era {era} | {nimi} | {tyyli}",
+            f"  Tankki: {tankki_str}",
             f"  Keitto: {fmt_date_viikonpaiva(keittopv_d)} | Astiointi: {fmt_vko(astiointi_d)} | Parasta ennen: {parasta}",
             f"  ABV: {abv}% | Tolkit: {tolkit_arvio}{keg_str}",
         ]
