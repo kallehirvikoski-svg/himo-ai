@@ -25,13 +25,11 @@ def parse_date(val):
     if not val: return None
     s = str(val).strip()
     if s in ('-', '', 'None'): return None
-    # Google Sheets lähettää ajat UTC-muodossa, Suomi on UTC+3
     if 'T' in s or 'Z' in s:
         try:
             s_clean = s.replace('Z', '').replace('T', ' ')
             d = datetime.strptime(s_clean[:19], '%Y-%m-%d %H:%M:%S')
-            d = d + timedelta(hours=3)  # UTC → Suomi
-            return d
+            return d + timedelta(hours=3)
         except:
             pass
     for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%d.%m.%Y'):
@@ -58,6 +56,15 @@ def next_after(d, weekday):
     if days == 0: days = 7
     return d + timedelta(days=days)
 
+def get_nimi(r, teemu_map, era_n):
+    """Nimiprioriteetti: Teemun nimi -> NIMI-sarake (r[2]) -> TYÖNIMI-sarake (r[1])"""
+    return (
+        (str(teemu_map.get(str(era_n), {}).get('nimi') or '')).strip()
+        or str(r[2] if len(r) > 2 else '').strip()
+        or str(r[1] if len(r) > 1 else '').strip()
+        or f'erä {era_n}'
+    )
+
 def build_planning_tables():
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     keitto_to_ast = []
@@ -67,7 +74,7 @@ def build_planning_tables():
         if d.weekday() in (2, 3):
             ast = next_after(d + timedelta(days=34), 1)
             p = 'ke' if d.weekday() == 2 else 'to'
-            keitto_to_ast.append(f"Keitto {p} {fmt_date(d)} → arvioitu astiointi ti {fmt_date(ast)}")
+            keitto_to_ast.append(f"Keitto {p} {fmt_date(d)} -> arvioitu astiointi ti {fmt_date(ast)}")
             added += 1
         d += timedelta(days=1)
 
@@ -80,7 +87,7 @@ def build_planning_tables():
             to = next_after(d - timedelta(days=36), 3)
             brew = min(ke, to)
             p = 'ke' if brew.weekday() == 2 else 'to'
-            ast_to_keitto.append(f"Astiointi ti {fmt_date(d)} → arvioitu keitto {p} {fmt_date(brew)}")
+            ast_to_keitto.append(f"Astiointi ti {fmt_date(d)} -> arvioitu keitto {p} {fmt_date(brew)}")
             added += 1
         d += timedelta(days=1)
 
@@ -88,23 +95,22 @@ def build_planning_tables():
 
 def build_tank_status(kalle, teemu_map):
     """
-    Laskee tankkitilanteen oikein.
+    Tankkitilanteen laskenta.
 
-    Logiikka per erä:
-    - Jos erällä on sekundääri JA siirtopäivä → erä on vaakassa (sek-tankki varattuna)
-      → primääritankki vapautui siirtopäivänä, ei lasketa primääriin
-    - Jos erällä on vain primääri (ei siirtoa) → erä on yhä primääritankissa
-    - Tankki on VAPAA jos sillä ei ole yhtään tulevaa astiointia
-    - Tankki on TULOSSA jos nykyinen erä ei ole vielä keitetty (keittopäivä tulevaisuudessa)
-    - Tankki on KÄYMÄSSÄ jos keitto on tehty mutta astiointi edessä
+    Nimiprioriteetti: Teemun nimi -> NIMI (r[2]) -> TYÖNIMI (r[1])
 
-    Ketjutus: tankissa voi olla peräkkäin useampi erä.
-    Tankki vapautuu VIIMEISIMMÄN tulevan astiointipäivän jälkeen.
+    Siirtologiikka:
+    - siirto_d <= today  -> erä on nyt vaakassa (sekundääri), primääri vapautui
+    - siirto_d > today   -> erä on vielä primäärissä, mutta varaa myös sekundäärin ketjutukseen
+    - ei siirtoa         -> erä pysyy primäärissä
+
+    Ketjutus: tankki voi sisältää useita peräkkäisiä eriä.
+    Vapautuminen = viimeisimmän erän astiointipäivä.
     """
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # tankki → lista (astiointi_d, era_n, nimi, keitto_d)
-    tankki_varaukset = {}
+    # tankki -> lista (astiointi_d, era_n, nimi, keitto_d, tulossa_bool)
+    varaukset = {}
 
     for r in kalle[1:]:
         if not r or not r[0]: continue
@@ -113,9 +119,7 @@ def build_tank_status(kalle, teemu_map):
         except:
             continue
 
-        # Haetaan kentät
-        nimi = (str(teemu_map.get(str(era_n), {}).get('nimi') or '')).strip() \
-               or str(r[2] if len(r) > 2 else '').strip() or '-'
+        nimi     = get_nimi(r, teemu_map, era_n)
         ast_d    = parse_date(r[10] if len(r) > 10 else None)
         siirto_d = parse_date(r[7]  if len(r) > 7  else None)
         keitto_d = parse_date(r[9]  if len(r) > 9  else None)
@@ -129,70 +133,56 @@ def build_tank_status(kalle, teemu_map):
         except:
             sek = None
 
-        # Ohitetaan erät joilla ei ole astiointipäivää eikä keittopäivää
-        # (esim. suunnitteilla olevat erät joilla ei vielä mitään dataa)
-        if not ast_d and not keitto_d:
-            continue
-
-        # Tarvitaan astiointipäivä tankkivaraukseen
         if not ast_d:
             continue
-
-        # Astiointi menneisyydessä → tankki jo vapaa, ohitetaan
         if ast_d <= today:
             continue
 
-        if sek and siirto_d and siirto_d <= today:
-            # Siirto jo tapahtunut → erä on nyt vaakassa (sekundääri)
-            # Primääri vapautui siirtopäivänä
-            tankki_varaukset.setdefault(sek, []).append((ast_d, era_n, nimi, keitto_d))
-        elif prim:
-            # Erä yhä primäärissä
-            tankki_varaukset.setdefault(prim, []).append((ast_d, era_n, nimi, keitto_d))
-            # Jos siirto on suunniteltu tulevaisuuteen → varaa myös sekundääri ketjutusta varten
-            if sek and siirto_d and siirto_d > today:
-                tankki_varaukset.setdefault(sek, []).append((ast_d, era_n, nimi, keitto_d))
+        tulossa = bool(keitto_d and keitto_d > today)
 
-    # Rakenna tankkirivit 1-10
+        if sek and siirto_d and siirto_d <= today:
+            # Siirto tapahtunut -> erä vaakassa
+            varaukset.setdefault(sek, []).append((ast_d, era_n, nimi, keitto_d, False))
+        elif prim:
+            # Erä primäärissä
+            varaukset.setdefault(prim, []).append((ast_d, era_n, nimi, keitto_d, tulossa))
+            if sek and siirto_d and siirto_d > today:
+                # Tuleva siirto -> varaa myös sekundääri
+                varaukset.setdefault(sek, []).append((ast_d, era_n, nimi, keitto_d, False))
+
     tankki_lines = []
     for t in range(1, 11):
-        varaukset = tankki_varaukset.get(t, [])
-        if not varaukset:
+        v = varaukset.get(t, [])
+        if not v:
             tankki_lines.append(f"Tankki {t}: VAPAA")
             continue
 
-        # Ketjutus: näytä viimeisin (se joka vapautuu viimeisenä)
-        # ja ensimmäinen (nykyinen/seuraava)
-        varaukset_sorted = sorted(varaukset, key=lambda x: x[0])
-        nykyinen = varaukset_sorted[0]   # aikataulussa ensimmäinen
-        viimeisin = varaukset_sorted[-1]  # vapautuu viimeisenä
+        v_sorted = sorted(v, key=lambda x: x[0])
+        vapautuu = v_sorted[-1][0]
+        ast_d, era_n, nimi, keitto_d, tulossa = v_sorted[0]
 
-        ast_d, era_n, nimi, keitto_d = nykyinen
-        vapautuu = viimeisin[0]
+        tila = f"TULOSSA — keitto {fmt_date_viikonpaiva(keitto_d)}" if tulossa else "KAYMASSA"
 
-        if keitto_d and keitto_d > today:
-            tila = f"TULOSSA — keitto {fmt_date_viikonpaiva(keitto_d)}"
-        else:
-            tila = "KÄYMÄSSÄ"
-
-        if len(varaukset_sorted) > 1:
-            # Ketjutettu tankki — näytä kaikki erät
-            era_lista = ', '.join([f"erä {v[1]} ({v[2]}) ast. {fmt_date(v[0])}" for v in varaukset_sorted])
+        if len(v_sorted) == 1:
             tankki_lines.append(
-                f"Tankki {t}: {tila} — {era_lista} | vapautuu {fmt_date(vapautuu)}"
+                f"Tankki {t}: {tila} — {nimi} (era {era_n}), astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(vapautuu)}"
             )
         else:
+            nyt = f"{nimi} (era {era_n}) ast. {fmt_date(ast_d)}"
+            seuraavat = " -> ".join(
+                f"{x[2]} (era {x[1]}) ast. {fmt_date(x[0])}" for x in v_sorted[1:]
+            )
             tankki_lines.append(
-                f"Tankki {t}: {tila} — Erä {era_n} ({nimi}), astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(vapautuu)}"
+                f"Tankki {t}: {tila} — NYT: {nyt} | SEURAAVAKSI: {seuraavat} | vapautuu {fmt_date(vapautuu)}"
             )
 
     return tankki_lines
 
 def build_system_prompt(data, include_ideas=False):
-    kalle  = data.get('kalle', [])
-    teemu  = data.get('teemu', [])
+    kalle   = data.get('kalle', [])
+    teemu   = data.get('teemu', [])
     etusivu = data.get('etusivu', [])
-    today  = datetime.now()
+    today   = datetime.now()
     today_str = fmt_date(today)
     today_vko = today.isocalendar()[1]
 
@@ -238,7 +228,7 @@ def build_system_prompt(data, include_ideas=False):
         t = teemu_map.get(era, {})
         e = etusivu_map.get(era, {})
 
-        nimi             = (str(t.get('nimi') or '')).strip() or str(r[2] if len(r) > 2 else '').strip() or '-'
+        nimi             = get_nimi(r, teemu_map, int(era))
         tyyli            = t.get('tyyli') or '-'
         kollabo          = t.get('kollabo') or '-'
         sitaatti         = t.get('sitaatti') or '-'
@@ -254,11 +244,6 @@ def build_system_prompt(data, include_ideas=False):
         ean_keg20        = str(e.get('ean_keg20') or '-').strip()
         ean_keg30        = str(e.get('ean_keg30') or '-').strip()
 
-        try: prim_t = int(float(str(r[6]))) if r[6] and str(r[6]) not in ('-','None') else None
-        except: prim_t = None
-        try: sek_t = int(float(str(r[8]))) if r[8] and str(r[8]) not in ('-','None') else None
-        except: sek_t = None
-        siirtopv_d  = parse_date(r[7]  if len(r) > 7  else None)
         keittopv_d  = parse_date(r[9]  if len(r) > 9  else None)
         astiointi_d = parse_date(r[10] if len(r) > 10 else None)
         abv         = r[12] if len(r) > 12 else '-'
@@ -271,13 +256,6 @@ def build_system_prompt(data, include_ideas=False):
         try: status = str(round(float(str(status_raw)) * 100)) + '%'
         except: status = str(status_raw)
 
-        if sek_t and siirtopv_d:
-            tankki_str = f"{prim_t} → siirto tankkiin {sek_t} ({fmt_date(siirtopv_d)})"
-        elif prim_t:
-            tankki_str = str(prim_t)
-        else:
-            tankki_str = '-'
-
         keg_str = ''
         try:
             if float(keg20) > 0: keg_str += f' + {int(float(keg20))} keg 20L'
@@ -286,35 +264,27 @@ def build_system_prompt(data, include_ideas=False):
             if float(keg30) > 0: keg_str += f' + {int(float(keg30))} keg 30L'
         except: pass
 
-        try: omakust_str = f'{float(str(omakust)):.2f} €'
+        try: omakust_str = f'{float(str(omakust)):.2f} e'
         except: omakust_str = ''
 
-        today_d = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        if keittopv_d and keittopv_d > today_d:
-            tankki_status = f"TULOSSA — keitto {fmt_date(keittopv_d)}, ei vielä tankissa"
-        elif keittopv_d and keittopv_d <= today_d:
-            tankki_status = f"KÄYMÄSSÄ — keitetty {fmt_date(keittopv_d)}"
-        else:
-            tankki_status = "tila tuntematon"
-
         lines = [
-            f"Erä {era} | {nimi} | {tyyli}",
+            f"Era {era} | {nimi} | {tyyli}",
             f"  Keitto: {fmt_date_viikonpaiva(keittopv_d)} | Astiointi: {fmt_vko(astiointi_d)} | Parasta ennen: {parasta}",
-            f"  ABV: {abv}% | Tölkit: {tolkit_arvio}{keg_str}",
+            f"  ABV: {abv}% | Tolkit: {tolkit_arvio}{keg_str}",
         ]
         if adjunkti and str(adjunkti).strip() not in ('-', ''):
             lines.append(f"  Adjunkti: {adjunkti}")
         if kollabo and str(kollabo).strip() not in ('-', ''):
             lines.append(f"  Kollabo: {kollabo}")
         if omakust_str:
-            lines.append(f"  Tölkki omakust: {omakust_str}")
+            lines.append(f"  Tolkki omakust: {omakust_str}")
         if ean_tolk not in ('-', ''):
-            lines.append(f"  EAN tölkki: {ean_tolk}")
+            lines.append(f"  EAN tolkki: {ean_tolk}")
         if ean_keg20 not in ('-', ''):
             lines.append(f"  EAN keg 20L: {ean_keg20}")
         if ean_keg30 not in ('-', ''):
             lines.append(f"  EAN keg 30L: {ean_keg30}")
-        lines.append(f"  Etiketti: {etiketti_tilanne} | Tilausmäärä: {etiketti_maara} kpl")
+        lines.append(f"  Etiketti: {etiketti_tilanne} | Tilausmaara: {etiketti_maara} kpl")
         lines.append(f"  Tiimin valmius: {kalle_pct}")
         if include_ideas:
             if sitaatti and str(sitaatti).strip() not in ('-', ''):
@@ -329,44 +299,44 @@ def build_system_prompt(data, include_ideas=False):
     tankki_lines = build_tank_status(kalle, teemu_map)
     keitto_to_ast, ast_to_keitto = build_planning_tables()
 
-    return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, täsmällinen ja ammattimainen.
+    return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, tarkka ja ammattimainen.
 
-Tänään on {today_str} (viikko {today_vko}).
-Data haettu suoraan Himo_Tuotanto Google Sheetistä.
+Tanaan on {today_str} (viikko {today_vko}).
+Data haettu suoraan Himo_Tuotanto Google Sheetista.
 
-PÄIVÄMÄÄRÄT OVAT PYHIÄ — EHDOTON SÄÄNTÖ:
-Toista päivämäärät AINA täsmälleen sellaisina kuin ne näkyvät alla.
-ÄLÄ KOSKAAN muuta, korjaa, laske tai keksi päivämääriä.
-ÄLÄ KOSKAAN lisää tai vähennä päiviä päivämääristä.
-Jos vastaus vaatii päivämäärälaskentaa jota ei ole alla valmiina, sano: "En laske päivämääriä — tarkista Tankkivaraus-välilehdeltä."
+PAIVAMAARAT OVAT PYHIA - EHDOTON SAANTO:
+Toista paivamaarat AINA tarkasti sellaisina kuin ne nakyy alla.
+ALA KOSKAAN muuta, korjaa, laske tai keksi paivamaaria.
+ALA KOSKAAN lisaa tai vahenna paivia paivamaaarista.
+Jos vastaus vaatii paivamaara laskentaa jota ei ole alla valmiina, sano: "En laske paivamaaria - tarkista Tankkivaraus-valilehdelta."
 
-=== ERÄT ===
+=== ERAT ===
 
 {chr(10).join(erat_lines)}
 
-=== TANKKITILANNE (laskettu Pythonilla — käytä VAIN näitä, älä laske itse) ===
+=== TANKKITILANNE (laskettu Pythonilla - kayta VAIN naita, ala laske itse) ===
 {chr(10).join(tankki_lines)}
 
 === SUUNNITTELUTAULUKOT (Python-laskettu, ~35 pv valmistusaika) ===
-Käytä näitä kun suunnitellaan tulevia eriä joilla ei vielä ole päivämääriä Sheetsissä.
-Kerro aina että kyseessä on alustava arvio — todellinen päivä vahvistuu tilanteen mukaan.
+Kayta naita kun suunnitellaan tulevia eria joilla ei viela ole paivamaaria Sheetissa.
+Kerro aina etta kyseessa on alustava arvio - todellinen paiva vahvistuu tilanteen mukaan.
 
-Keitto → arvioitu astiointi:
+Keitto -> arvioitu astiointi:
 {keitto_to_ast}
 
-Astiointi → arvioitu keitto:
+Astiointi -> arvioitu keitto:
 {ast_to_keitto}
 
 === PANIMON RYTMI ===
-- Keittopäivät: yleensä ke ja to, 1 erä/päivä
-- Astiointipäivät: yleensä tiistai, normaali 2 erää/päivä, max 3
-- Lisäkapasiteetti tarvittaessa: keittoon pe, astiointiin ke — vaatii rytmin muutosta
-- Tankkitilanne ja aikataulu: katso Tankkivaraus-välilehti Sheetsissä
+- Keittopaiivat: yleensa ke ja to, 1 era/paiva
+- Astiointipaiivat: yleensa tiistai, normaali 2 eraa/paiva, max 3
+- Lisakapasiteetti tarvittaessa: keittoon pe, astiointiin ke
+- Tankkitilanne ja aikataulu: katso Tankkivaraus-valilehti Sheetissa
 
 === PARASTA ENNEN -VAROITUKSET ===
-Erä 248 Kateus: 12/26 | Erä 249 Katellaan: 12/26 | Erä 262 Sytytys: Micro: 1/27 (lyhyt!)
+Era 248 Kateus: 12/26 | Era 249 Katellaan: 12/26 | Era 262 Sytytys Micro: 1/27 (lyhyt!)
 
-Vastaa täsmällisesti. Jos dataa ei ole, sano rehellisesti. Älä keksi tietoja."""
+Vastaa tarkasti. Jos dataa ei ole, sano rehellisesti. Ala keksi tietoja."""
 
 IDEA_KEYWORDS = ['idea', 'etiketti', 'sitaatti', 'konsepti', 'kuvitus', 'hahmo', 'draghahmo',
                   'olut idea', 'etikettiidea', 'suunnittelu', 'grafiikka', 'kollabo']
@@ -377,7 +347,7 @@ def get_system_prompt(user_message=''):
         data = fetch_sheet_data()
         return build_system_prompt(data, include_ideas=include_ideas)
     except Exception as e:
-        print(f'Sheets-haku epäonnistui: {e}')
+        print(f'Sheets-haku epaonnistui: {e}')
         return 'Olet Panimo Himon tuotantoassistentti. Sheets-data ei ole saatavilla juuri nyt.'
 
 class Handler(BaseHTTPRequestHandler):
@@ -400,25 +370,36 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 data = fetch_sheet_data()
                 kalle = data.get('kalle', [])
+                teemu_map = {}
+                for r in (data.get('teemu') or [])[1:]:
+                    if not r or not r[0]: continue
+                    try: era = str(int(float(str(r[0]))))
+                    except: continue
+                    teemu_map[era] = {'nimi': r[2] if len(r) > 2 else None}
                 rows = []
                 for r in kalle[1:]:
                     if not r or not r[0]: continue
-                    try: era = int(float(str(r[0])))
+                    try: era_n = int(float(str(r[0])))
                     except: continue
-                    if 254 <= era <= 265:
-                        rows.append({
-                            'era': era,
-                            'prim':      r[6]  if len(r) > 6  else None,
-                            'siirto':    r[7]  if len(r) > 7  else None,
-                            'sek':       r[8]  if len(r) > 8  else None,
-                            'keitto':    r[9]  if len(r) > 9  else None,
-                            'astiointi': r[10] if len(r) > 10 else None,
-                        })
+                    if era_n < 250: continue
+                    rows.append({
+                        'era':      era_n,
+                        'tyonimi':  r[1]  if len(r) > 1  else None,
+                        'nimi':     r[2]  if len(r) > 2  else None,
+                        'teemu':    teemu_map.get(str(era_n), {}).get('nimi'),
+                        'prim':     r[6]  if len(r) > 6  else None,
+                        'siirto':   r[7]  if len(r) > 7  else None,
+                        'sek':      r[8]  if len(r) > 8  else None,
+                        'keitto':   r[9]  if len(r) > 9  else None,
+                        'astiointi':r[10] if len(r) > 10 else None,
+                    })
+                tankki_lines = build_tank_status(kalle, teemu_map)
+                output = {'rows': rows, 'tankki_status': tankki_lines}
                 self.send_response(200)
                 self.send_cors_headers()
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
-                self.wfile.write(json.dumps(rows, ensure_ascii=False, default=str).encode())
+                self.wfile.write(json.dumps(output, ensure_ascii=False, default=str).encode())
             except Exception as e:
                 self.send_response(500)
                 self.send_cors_headers()
@@ -491,5 +472,5 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
 if __name__ == '__main__':
-    print(f'Himo AI server käynnissä portissa {PORT}')
+    print(f'Himo AI server kaynnissa portissa {PORT}')
     HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
