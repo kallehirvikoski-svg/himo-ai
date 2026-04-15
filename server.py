@@ -26,7 +26,6 @@ def parse_date(val):
     s = str(val).strip()
     if s in ('-', '', 'None'): return None
     # Google Sheets lähettää ajat UTC-muodossa, Suomi on UTC+3
-    # Esim. "2026-05-18T21:00:00.000Z" = 19.5. Suomen aikaa
     if 'T' in s or 'Z' in s:
         try:
             s_clean = s.replace('Z', '').replace('T', ' ')
@@ -87,11 +86,105 @@ def build_planning_tables():
 
     return '\n'.join(keitto_to_ast), '\n'.join(ast_to_keitto)
 
+def build_tank_status(kalle, teemu_map):
+    """
+    Laskee tankkitilanteen oikein.
+
+    Logiikka per erä:
+    - Jos erällä on sekundääri JA siirtopäivä → erä on vaakassa (sek-tankki varattuna)
+      → primääritankki vapautui siirtopäivänä, ei lasketa primääriin
+    - Jos erällä on vain primääri (ei siirtoa) → erä on yhä primääritankissa
+    - Tankki on VAPAA jos sillä ei ole yhtään tulevaa astiointia
+    - Tankki on TULOSSA jos nykyinen erä ei ole vielä keitetty (keittopäivä tulevaisuudessa)
+    - Tankki on KÄYMÄSSÄ jos keitto on tehty mutta astiointi edessä
+
+    Ketjutus: tankissa voi olla peräkkäin useampi erä.
+    Tankki vapautuu VIIMEISIMMÄN tulevan astiointipäivän jälkeen.
+    """
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # tankki → lista (astiointi_d, era_n, nimi, keitto_d)
+    tankki_varaukset = {}
+
+    for r in kalle[1:]:
+        if not r or not r[0]: continue
+        try:
+            era_n = int(float(str(r[0])))
+        except:
+            continue
+
+        # Haetaan kentät
+        nimi = (str(teemu_map.get(str(era_n), {}).get('nimi') or '')).strip() \
+               or str(r[2] if len(r) > 2 else '').strip() or '-'
+        ast_d    = parse_date(r[10] if len(r) > 10 else None)
+        siirto_d = parse_date(r[7]  if len(r) > 7  else None)
+        keitto_d = parse_date(r[9]  if len(r) > 9  else None)
+
+        try:
+            prim = int(float(str(r[6]))) if r[6] and str(r[6]) not in ('-', 'None', '') else None
+        except:
+            prim = None
+        try:
+            sek = int(float(str(r[8]))) if r[8] and str(r[8]) not in ('-', 'None', '') else None
+        except:
+            sek = None
+
+        # Tarvitaan astiointipäivä jotta tankilla on varaus
+        if not ast_d:
+            continue
+
+        # Astiointi menneisyydessä → tankki jo vapaa, ohitetaan
+        if ast_d <= today:
+            continue
+
+        if sek and siirto_d:
+            # Erä siirretty vaakkaan → varataan sekundääritankki
+            # Primääri vapautui siirtopäivänä → ei lasketa primääriin
+            tankki_varaukset.setdefault(sek, []).append((ast_d, era_n, nimi, keitto_d))
+        elif prim:
+            # Erä yhä primäärissä
+            tankki_varaukset.setdefault(prim, []).append((ast_d, era_n, nimi, keitto_d))
+
+    # Rakenna tankkirivit 1-10
+    tankki_lines = []
+    for t in range(1, 11):
+        varaukset = tankki_varaukset.get(t, [])
+        if not varaukset:
+            tankki_lines.append(f"Tankki {t}: VAPAA")
+            continue
+
+        # Ketjutus: näytä viimeisin (se joka vapautuu viimeisenä)
+        # ja ensimmäinen (nykyinen/seuraava)
+        varaukset_sorted = sorted(varaukset, key=lambda x: x[0])
+        nykyinen = varaukset_sorted[0]   # aikataulussa ensimmäinen
+        viimeisin = varaukset_sorted[-1]  # vapautuu viimeisenä
+
+        ast_d, era_n, nimi, keitto_d = nykyinen
+        vapautuu = viimeisin[0]
+
+        if keitto_d and keitto_d > today:
+            tila = f"TULOSSA — keitto {fmt_date_viikonpaiva(keitto_d)}"
+        else:
+            tila = "KÄYMÄSSÄ"
+
+        if len(varaukset_sorted) > 1:
+            # Ketjutettu tankki — näytä kaikki erät
+            era_lista = ', '.join([f"erä {v[1]} ({v[2]}) ast. {fmt_date(v[0])}" for v in varaukset_sorted])
+            tankki_lines.append(
+                f"Tankki {t}: {tila} — {era_lista} | vapautuu {fmt_date(vapautuu)}"
+            )
+        else:
+            tankki_lines.append(
+                f"Tankki {t}: {tila} — Erä {era_n} ({nimi}), astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(vapautuu)}"
+            )
+
+    return tankki_lines
+
 def build_system_prompt(data, include_ideas=False):
-    kalle = data.get('kalle', [])
-    teemu = data.get('teemu', [])
+    kalle  = data.get('kalle', [])
+    teemu  = data.get('teemu', [])
     etusivu = data.get('etusivu', [])
-    today = datetime.now()
+    today  = datetime.now()
     today_str = fmt_date(today)
     today_vko = today.isocalendar()[1]
 
@@ -137,14 +230,14 @@ def build_system_prompt(data, include_ideas=False):
         t = teemu_map.get(era, {})
         e = etusivu_map.get(era, {})
 
-        nimi = (str(t.get('nimi') or '')).strip() or str(r[2] if len(r) > 2 else '').strip() or '-'
-        tyyli         = t.get('tyyli') or '-'
-        kollabo       = t.get('kollabo') or '-'
-        sitaatti      = t.get('sitaatti') or '-'
-        olut_idea     = t.get('olut_idea') or '-'
-        etiketti_idea = t.get('etiketti_idea') or '-'
-        keg20         = str(t.get('keg20') or '0').strip()
-        keg30         = str(t.get('keg30') or '0').strip()
+        nimi             = (str(t.get('nimi') or '')).strip() or str(r[2] if len(r) > 2 else '').strip() or '-'
+        tyyli            = t.get('tyyli') or '-'
+        kollabo          = t.get('kollabo') or '-'
+        sitaatti         = t.get('sitaatti') or '-'
+        olut_idea        = t.get('olut_idea') or '-'
+        etiketti_idea    = t.get('etiketti_idea') or '-'
+        keg20            = str(t.get('keg20') or '0').strip()
+        keg30            = str(t.get('keg30') or '0').strip()
         parasta          = str(e.get('parasta') or '-').strip()
         etiketti_tilanne = str(e.get('etiketti_tilanne') or '-').strip()
         etiketti_maara   = str(e.get('etiketti_maara') or '-').strip()
@@ -188,7 +281,6 @@ def build_system_prompt(data, include_ideas=False):
         try: omakust_str = f'{float(str(omakust)):.2f} €'
         except: omakust_str = ''
 
-        # Onko erä jo tankissa?
         today_d = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         if keittopv_d and keittopv_d > today_d:
             tankki_status = f"TULOSSA — keitto {fmt_date(keittopv_d)}, ei vielä tankissa"
@@ -227,55 +319,7 @@ def build_system_prompt(data, include_ideas=False):
         lines.append(f"  Status: {status}")
         erat_lines.append('\n'.join(lines))
 
-    # Laske tankkitilanne Pythonilla
-    today_d = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # Kerää KAIKKI varaukset per tankki ja etsi viimeisin tuleva astiointi
-    tankki_kaikki = {}
-    for r in kalle[1:]:
-        if not r or not r[0]: continue
-        try: era_n = int(float(str(r[0])))
-        except: continue
-        if era_n < 248: continue
-
-        nimi_t = (str(teemu_map.get(str(era_n), {}).get('nimi') or '')).strip() or str(r[2] if len(r) > 2 else '').strip() or '-'
-        ast_d = parse_date(r[10] if len(r) > 10 else None)
-        siirto_d = parse_date(r[7] if len(r) > 7 else None)
-        keitto_d = parse_date(r[9] if len(r) > 9 else None)
-
-        try: prim = int(float(str(r[6]))) if r[6] and str(r[6]) not in ('-','None') else None
-        except: prim = None
-        try: sek = int(float(str(r[8]))) if r[8] and str(r[8]) not in ('-','None') else None
-        except: sek = None
-
-        if not ast_d: continue
-
-        if prim:
-            tankki_kaikki.setdefault(prim, []).append((ast_d, era_n, nimi_t, keitto_d))
-        if sek and siirto_d:
-            tankki_kaikki.setdefault(sek, []).append((ast_d, era_n, nimi_t, keitto_d))
-
-    # Tankki vapautuu viimeisimmän tulevan astiointipäivän jälkeen
-    tankki_vapautuu = {}
-    tankki_nykyinen = {}
-    for tankki, lista in tankki_kaikki.items():
-        tulevat = [(a, e, n, k) for a, e, n, k in lista if a > today_d]
-        if tulevat:
-            viimeisin = max(tulevat, key=lambda x: x[0])
-            tankki_vapautuu[tankki] = viimeisin[0]
-            tankki_nykyinen[tankki] = viimeisin
-
-    tankki_lines = []
-    for t in range(1, 11):
-        if t in tankki_nykyinen:
-            ast_d, era_n, nimi_t, keitto_d = tankki_nykyinen[t]
-            if keitto_d and keitto_d > today_d:
-                tankki_lines.append(f"Tankki {t}: TULOSSA — Erä {era_n} ({nimi_t}) keitetään {fmt_date_viikonpaiva(keitto_d)}, astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(ast_d)}")
-            else:
-                tankki_lines.append(f"Tankki {t}: KÄYMÄSSÄ — Erä {era_n} ({nimi_t}), astiointi {fmt_vko(ast_d)}, vapautuu {fmt_date(ast_d)}")
-        else:
-            tankki_lines.append(f"Tankki {t}: VAPAA")
-
+    tankki_lines = build_tank_status(kalle, teemu_map)
     keitto_to_ast, ast_to_keitto = build_planning_tables()
 
     return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, täsmällinen ja ammattimainen.
