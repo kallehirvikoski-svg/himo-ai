@@ -389,6 +389,35 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(b'{"status":"ok"}')
+        elif self.path == '/api/debug':
+            try:
+                data = fetch_sheet_data()
+                kalle = data.get('kalle', [])
+                rows = []
+                for r in kalle[1:]:
+                    if not r or not r[0]: continue
+                    try: era = int(float(str(r[0])))
+                    except: continue
+                    if 254 <= era <= 265:
+                        rows.append({
+                            'era': era,
+                            'prim':      r[6]  if len(r) > 6  else None,
+                            'siirto':    r[7]  if len(r) > 7  else None,
+                            'sek':       r[8]  if len(r) > 8  else None,
+                            'keitto':    r[9]  if len(r) > 9  else None,
+                            'astiointi': r[10] if len(r) > 10 else None,
+                        })
+                self.send_response(200)
+                self.send_cors_headers()
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(rows, ensure_ascii=False, default=str).encode())
+            except Exception as e:
+                self.send_response(500)
+                self.send_cors_headers()
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': str(e)}).encode())
         else:
             try:
                 with open('index.html', 'rb') as f:
