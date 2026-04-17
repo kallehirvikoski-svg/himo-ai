@@ -44,7 +44,7 @@ PAIVAT = ['ma', 'ti', 'ke', 'to', 'pe', 'la', 'su']
 def fmt_date(d):
     return d.strftime('%-d.%-m.%Y') if d else '-'
 
-def fmt_date_viikonpaiva(d):
+def fmt_date(d):  # ei kayteta enaa - kayta fmt_date
     if not d: return '-'
     return f"{PAIVAT[d.weekday()]} {d.strftime('%-d.%-m.%Y')}"
 
@@ -161,7 +161,7 @@ def build_tank_status(kalle, teemu_map):
         vapautuu = v_sorted[-1][0]
         ast_d, era_n, nimi, keitto_d, tulossa = v_sorted[0]
 
-        tila = f"TULOSSA — keitto {fmt_date_viikonpaiva(keitto_d)}" if tulossa else "KAYMASSA"
+        tila = f"TULOSSA — keitto {fmt_date(keitto_d)}" if tulossa else "KAYMASSA"
 
         if len(v_sorted) == 1:
             tankki_lines.append(
@@ -281,7 +281,7 @@ def build_system_prompt(data, include_ideas=False):
         lines = [
             f"Era {era} | {nimi} | {tyyli}",
             f"  Tankki: {tankki_str}",
-            f"  Keitto: {fmt_date_viikonpaiva(keittopv_d)} | Astiointi: {fmt_vko(astiointi_d)} | Parasta ennen: {parasta}",
+            f"  Keitto: {fmt_date(keittopv_d)} | Astiointi: {fmt_vko(astiointi_d)} | Parasta ennen: {parasta}",
             f"  ABV: {abv}% | Tolkit: {tolkit_arvio}{keg_str}",
         ]
         if adjunkti and str(adjunkti).strip() not in ('-', ''):
@@ -487,3 +487,4 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     print(f'Himo AI server kaynnissa portissa {PORT}')
     HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
+    
