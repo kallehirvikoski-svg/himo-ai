@@ -250,8 +250,11 @@ def build_system_prompt(data, include_ideas=False):
         except: prim_t = None
         try: sek_t = int(float(str(r[8]))) if r[8] and str(r[8]) not in ("-","None","") else None
         except: sek_t = None
-        if sek_t and siirtopv_d:
-            tankki_str = f"primaari {prim_t} -> vaakka {sek_t} ({fmt_date(siirtopv_d)})"
+        today_d = (datetime.now() + timedelta(hours=3)).replace(hour=0, minute=0, second=0, microsecond=0)
+        if sek_t and siirtopv_d and siirtopv_d <= today_d:
+            tankki_str = f"vaakkatankki {sek_t} (siirretty {fmt_date(siirtopv_d)})"
+        elif sek_t and siirtopv_d and siirtopv_d > today_d:
+            tankki_str = f"primaari {prim_t}, siirto vaakkatankkiin {sek_t} {fmt_date(siirtopv_d)}"
         elif prim_t:
             tankki_str = f"primaari {prim_t}"
         else:
@@ -321,6 +324,7 @@ Toista paivamaarat AINA tarkasti sellaisina kuin ne nakyy alla.
 ALA KOSKAAN muuta, korjaa, laske tai keksi paivamaaria.
 ALA KOSKAAN lisaa tai vahenna paivia paivamaaarista.
 ALA KOSKAAN kayta suhteellisia aikaviittauksia kuten "huomenna", "eilen", "ylihuomenna", "ensi viikolla" tms. Kayta AINA tarkkoja paivamaaria ja viikkonumeroita.
+ALA KOSKAAN lisaa viikonpaivaa (ma, ti, ke, to, pe, la, su) paivamaaran yhteyteen. Kirjoita paivamaarat muodossa pp.kk.vvvv tai pp.kk.vvvv (vko N). Et tiedä mikä viikonpäivä mikäkin päivämäärä on - älä arvaa.
 Jos vastaus vaatii paivamaara laskentaa jota ei ole alla valmiina, sano: "En laske paivamaaria - tarkista Tankkivaraus-valilehdelta."
 
 === ERAT ===
@@ -487,4 +491,3 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     print(f'Himo AI server kaynnissa portissa {PORT}')
     HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
-    
