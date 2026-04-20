@@ -178,6 +178,60 @@ def build_tank_status(kalle, teemu_map):
 
     return tankki_lines
 
+
+def build_week_schedule(kalle, teemu_map):
+    """Laskee tämän viikon astioinit, keitot ja siirrot."""
+    today = (datetime.now() + timedelta(hours=3)).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Viikon alku (maanantai) ja loppu (sunnuntai)
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    astioinit = []
+    keitot = []
+    siirrot = []
+
+    for r in kalle[1:]:
+        if not r or not r[0]: continue
+        try:
+            era_n = int(float(str(r[0])))
+        except:
+            continue
+
+        nimi = get_nimi(r, teemu_map, era_n)
+        ast_d    = parse_date(r[10] if len(r) > 10 else None)
+        siirto_d = parse_date(r[7]  if len(r) > 7  else None)
+        keitto_d = parse_date(r[9]  if len(r) > 9  else None)
+
+        try: tolkit = str(r[13] if len(r) > 13 else '-')
+        except: tolkit = '-'
+
+        if ast_d and week_start <= ast_d <= week_end:
+            astioinit.append((ast_d, f"{fmt_date(ast_d)} — {nimi} (era {era_n}), {tolkit} tolkia"))
+        if keitto_d and week_start <= keitto_d <= week_end:
+            keitot.append((keitto_d, f"{fmt_date(keitto_d)} — {nimi} (era {era_n})"))
+        if siirto_d and week_start <= siirto_d <= week_end:
+            siirrot.append((siirto_d, f"{fmt_date(siirto_d)} — {nimi} (era {era_n}) primaari -> vaakka"))
+
+    astioinit.sort(); keitot.sort(); siirrot.sort()
+
+    ast_str  = "\n".join(x[1] for x in astioinit)  or "Ei astiointeja talla viikolla"
+    keit_str = "\n".join(x[1] for x in keitot)     or "Ei keittoja talla viikolla"
+    siir_str = "\n".join(x[1] for x in siirrot)    or "Ei tankkisiirtoja talla viikolla"
+
+    vko_n = today.isocalendar()[1]
+    vko_alku = fmt_date(week_start)
+    vko_loppu = fmt_date(week_end)
+
+    return f"""=== TAMAN VIIKON OHJELMA (vko {vko_n}, {vko_alku}-{vko_loppu}) ===
+Astioinit:
+{ast_str}
+
+Keitot:
+{keit_str}
+
+Tankkisiirrot:
+{siir_str}"""
+
 def build_system_prompt(data, include_ideas=False):
     kalle   = data.get('kalle', [])
     teemu   = data.get('teemu', [])
@@ -312,6 +366,7 @@ def build_system_prompt(data, include_ideas=False):
         erat_lines.append('\n'.join(lines))
 
     tankki_lines = build_tank_status(kalle, teemu_map)
+    viikko_ohjelma = build_week_schedule(kalle, teemu_map)
     keitto_to_ast, ast_to_keitto = build_planning_tables()
 
     return f"""Olet Panimo Himon tuotantoassistentti. Vastaat aina suomeksi. Olet lyhyt, tarkka ja ammattimainen.
@@ -333,6 +388,8 @@ Jos vastaus vaatii paivamaara laskentaa jota ei ole alla valmiina, sano: "En las
 
 === TANKKITILANNE (laskettu Pythonilla - kayta VAIN naita, ala laske itse) ===
 {chr(10).join(tankki_lines)}
+
+{viikko_ohjelma}
 
 === SUUNNITTELUTAULUKOT (Python-laskettu, ~35 pv valmistusaika) ===
 Kayta naita kun suunnitellaan tulevia eria joilla ei viela ole paivamaaria Sheetissa.
